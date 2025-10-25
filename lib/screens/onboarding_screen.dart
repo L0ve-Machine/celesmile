@@ -33,21 +33,18 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           children: [
             _buildWelcomePage(),
             _buildHowToPage(
-              stepNumber: '2',
               centerImage: 'assets/images/2.png',
               title: '希望のサービスを選択',
               subtitle: '依頼内容の詳細を入力',
               pageIndex: 1,
             ),
             _buildHowToPage(
-              stepNumber: '3',
               centerImage: 'assets/images/3.png',
               title: '希望の日時を選択',
               subtitle: '金額を確認して依頼完了！',
               pageIndex: 2,
             ),
             _buildHowToPage(
-              stepNumber: '4',
               centerImage: 'assets/images/4.png',
               title: 'サービス実施',
               subtitle: '指定日に家事キャストを待つだけ！',
@@ -226,7 +223,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   Widget _buildHowToPage({
-    required String stepNumber,
     required String centerImage,
     required String title,
     required String subtitle,
@@ -236,91 +232,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
     return Column(
       children: [
-        // Status bar area
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                '19:39',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                ),
-              ),
-              Row(
-                children: [
-                  Icon(Icons.signal_cellular_4_bar, size: 16),
-                  SizedBox(width: 4),
-                  Icon(Icons.wifi, size: 16),
-                  SizedBox(width: 4),
-                  Text(
-                    '16%',
-                    style: TextStyle(fontSize: 14),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
+        const SizedBox(height: 40),
 
-        const SizedBox(height: 20),
-
-        // Main content card with image
+        // Main content - just the image without border
         Expanded(
           flex: 3,
           child: Container(
             margin: const EdgeInsets.symmetric(horizontal: 20),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: Colors.black,
-                width: 2,
-              ),
-            ),
-            child: Stack(
-              children: [
-                // Step number badge
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 32,
-                      vertical: 16,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Color(0xFF8B7355), // Brown color from the images
-                      borderRadius: BorderRadius.only(
-                        topLeft: Radius.circular(10),
-                        bottomRight: Radius.circular(8),
-                      ),
-                    ),
-                    child: Text(
-                      stepNumber,
-                      style: TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
-
-                // Center image
-                Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Image.asset(
-                      centerImage,
-                      fit: BoxFit.contain,
-                    ),
-                  ),
-                ),
-              ],
+            child: Image.asset(
+              centerImage,
+              fit: BoxFit.contain,
             ),
           ),
         ),
@@ -432,44 +353,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         ),
 
         const SizedBox(height: 40),
-
-        // お困りですか？ floating button
-        Positioned(
-          bottom: 100,
-          right: 20,
-          child: Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: AppColors.primaryOrange,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.2),
-                  blurRadius: 8,
-                  offset: Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.support_agent,
-                  color: Colors.white,
-                  size: 32,
-                ),
-                Text(
-                  'お困りですか？',
-                  style: TextStyle(
-                    fontSize: 8,
-                    color: Colors.white,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
       ],
     );
   }
