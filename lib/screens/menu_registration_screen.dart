@@ -1,0 +1,514 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../constants/colors.dart';
+import '../services/provider_database_service.dart';
+
+class MenuRegistrationScreen extends StatefulWidget {
+  const MenuRegistrationScreen({super.key});
+
+  @override
+  State<MenuRegistrationScreen> createState() => _MenuRegistrationScreenState();
+}
+
+class _MenuRegistrationScreenState extends State<MenuRegistrationScreen> {
+  final List<MenuItemData> _menuItems = [];
+  String? _providerId;
+  String? _salonId;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final args = ModalRoute.of(context)?.settings.arguments as Map?;
+    _providerId = args?['providerId'] as String?;
+    _salonId = args?['salonId'] as String?;
+  }
+
+  void _addMenuItem() {
+    setState(() {
+      _menuItems.add(MenuItemData());
+    });
+  }
+
+  void _removeMenuItem(int index) {
+    setState(() {
+      _menuItems.removeAt(index);
+    });
+  }
+
+  void _saveMenus() {
+    // Validate all menus
+    bool allValid = true;
+    for (var item in _menuItems) {
+      if (!item.isValid()) {
+        allValid = false;
+        break;
+      }
+    }
+
+    if (!allValid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('すべてのメニュー項目を正しく入力してください')),
+      );
+      return;
+    }
+
+    if (_menuItems.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('最低1つのメニューを追加してください')),
+      );
+      return;
+    }
+
+    final providerDb = ProviderDatabaseService();
+
+    // Save each menu
+    for (var item in _menuItems) {
+      final menuId = DateTime.now().millisecondsSinceEpoch.toString() + '_${_menuItems.indexOf(item)}';
+
+      final menu = ProviderServiceMenu(
+        id: menuId,
+        providerId: _providerId ?? '',
+        salonId: _salonId ?? '',
+        menuName: item.nameController.text,
+        description: item.descriptionController.text,
+        price: int.parse(item.priceController.text),
+        duration: int.parse(item.durationController.text),
+        category: item.selectedCategory ?? '',
+        createdAt: DateTime.now(),
+      );
+
+      providerDb.addMenu(menu);
+    }
+
+    // Navigate to identity verification instead of going back
+    if (mounted) {
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        '/identity-verification',
+        (route) => route.settings.name == '/provider-home-dashboard',
+        arguments: _providerId,
+      );
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${_menuItems.length}個のメニューが保存されました。次に本人確認を行ってください。'),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text(
+          'メニュー登録',
+          style: TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        centerTitle: true,
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'ステップ4',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: AppColors.accentBlue,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'サービスメニューを登録',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '提供するサービスの詳細を登録してください',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Menu items list
+                  if (_menuItems.isEmpty)
+                    Center(
+                      child: Column(
+                        children: [
+                          const SizedBox(height: 40),
+                          Icon(
+                            Icons.menu_book,
+                            size: 80,
+                            color: Colors.grey[300],
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'メニューがまだ登録されていません',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            '下の「メニューを追加」ボタンから登録してください',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[500],
+                            ),
+                          ),
+                          const SizedBox(height: 40),
+                        ],
+                      ),
+                    )
+                  else
+                    ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: _menuItems.length,
+                      itemBuilder: (context, index) {
+                        return _buildMenuItemCard(index, _menuItems[index]);
+                      },
+                    ),
+
+                  const SizedBox(height: 16),
+
+                  // Add menu button
+                  OutlinedButton.icon(
+                    onPressed: _addMenuItem,
+                    icon: const Icon(Icons.add, color: AppColors.accentBlue),
+                    label: const Text(
+                      'メニューを追加',
+                      style: TextStyle(
+                        color: AppColors.accentBlue,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+                      side: const BorderSide(color: AppColors.accentBlue, width: 2),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 32),
+
+                  // Info box
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.blue[50],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.accentBlue.withOpacity(0.3)),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.lightbulb_outline, color: AppColors.accentBlue, size: 20),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            'ヒント：料金と所要時間を明確に記載することで、お客様が予約しやすくなります。複数のコースを用意すると選択肢が広がります。',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.grey[800],
+                              height: 1.5,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 100),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+      bottomNavigationBar: SafeArea(
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 8,
+                offset: const Offset(0, -2),
+              ),
+            ],
+          ),
+          child: ElevatedButton(
+            onPressed: _menuItems.isEmpty ? null : _saveMenus,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _menuItems.isEmpty ? Colors.grey[400] : AppColors.primaryOrange,
+              disabledBackgroundColor: Colors.grey[400],
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              elevation: 0,
+            ),
+            child: Text(
+              _menuItems.isEmpty ? 'メニューを追加してください' : '${_menuItems.length}個のメニューを保存',
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMenuItemCard(int index, MenuItemData item) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 16),
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: AppColors.lightGray),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'メニュー ${index + 1}',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.accentBlue,
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline, color: Colors.red),
+                  onPressed: () => _removeMenuItem(index),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Menu name
+            _buildTextField(
+              controller: item.nameController,
+              label: 'メニュー名',
+              hint: '例：もみほぐし 60分',
+              required: true,
+            ),
+            const SizedBox(height: 16),
+
+            // Category
+            const Text(
+              'カテゴリー',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: AppColors.lightGray),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  value: item.selectedCategory,
+                  isExpanded: true,
+                  hint: const Text('カテゴリーを選択'),
+                  items: ['マッサージ', 'ネイル', 'まつげ', 'ヨガ', 'フィットネス', 'その他']
+                      .map((cat) => DropdownMenuItem(value: cat, child: Text(cat)))
+                      .toList(),
+                  onChanged: (value) {
+                    setState(() {
+                      item.selectedCategory = value;
+                    });
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Price and Duration
+            Row(
+              children: [
+                Expanded(
+                  child: _buildTextField(
+                    controller: item.priceController,
+                    label: '料金（円）',
+                    hint: '5000',
+                    required: true,
+                    keyboardType: TextInputType.number,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: _buildTextField(
+                    controller: item.durationController,
+                    label: '所要時間（分）',
+                    hint: '60',
+                    required: true,
+                    keyboardType: TextInputType.number,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Description
+            _buildTextField(
+              controller: item.descriptionController,
+              label: 'メニュー説明',
+              hint: 'サービスの詳細や特徴を記載してください',
+              required: true,
+              maxLines: 3,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+    required bool required,
+    int maxLines = 1,
+    TextInputType? keyboardType,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            if (required) ...[
+              const SizedBox(width: 4),
+              const Text(
+                '*',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.red,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: controller,
+          maxLines: maxLines,
+          keyboardType: keyboardType,
+          inputFormatters: keyboardType == TextInputType.number
+              ? [FilteringTextInputFormatter.digitsOnly]
+              : null,
+          style: const TextStyle(
+            fontSize: 15,
+            color: AppColors.textPrimary,
+          ),
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: TextStyle(
+              fontSize: 14,
+              color: Colors.grey[400],
+            ),
+            filled: true,
+            fillColor: Colors.grey[50],
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: AppColors.lightGray),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: AppColors.lightGray),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: AppColors.accentBlue, width: 2),
+            ),
+            contentPadding: const EdgeInsets.all(12),
+          ),
+        ),
+      ],
+    );
+  }
+
+  @override
+  void dispose() {
+    for (var item in _menuItems) {
+      item.dispose();
+    }
+    super.dispose();
+  }
+}
+
+class MenuItemData {
+  final TextEditingController nameController = TextEditingController();
+  final TextEditingController priceController = TextEditingController();
+  final TextEditingController durationController = TextEditingController();
+  final TextEditingController descriptionController = TextEditingController();
+  String? selectedCategory;
+
+  bool isValid() {
+    return nameController.text.isNotEmpty &&
+        priceController.text.isNotEmpty &&
+        durationController.text.isNotEmpty &&
+        descriptionController.text.isNotEmpty &&
+        selectedCategory != null;
+  }
+
+  void dispose() {
+    nameController.dispose();
+    priceController.dispose();
+    durationController.dispose();
+    descriptionController.dispose();
+  }
+}
