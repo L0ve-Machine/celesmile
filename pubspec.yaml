@@ -40,6 +40,7 @@ dependencies:
   flutter_svg: ^2.0.10
   image_picker: ^1.0.4
   flutter_dotenv: ^5.1.0
+  google_fonts: ^6.3.2
 
 dev_dependencies:
   flutter_test:
@@ -68,6 +69,7 @@ flutter:
     - .env
     - assets/images/illustration.jpg
     - assets/images/logo.png
+    - assets/images/logoForLogin.png
     - assets/images/front.png
     - assets/images/howTo1.png
     - assets/images/howTo2.png
@@ -112,3 +114,8 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+  fonts:
+    - family: Qilka
+      fonts:
+        - asset: assets/fonts/qilka/Qilka-Bold copy.otf
+          weight: 700

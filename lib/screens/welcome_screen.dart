@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../constants/colors.dart';
 import '../services/auth_service.dart';
 import '../widgets/orange_wave_painter.dart';
@@ -26,7 +27,20 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     return Scaffold(
       backgroundColor: AppColors.lightBeige,
       body: Stack(
+        fit: StackFit.expand,
         children: [
+          // Bottom left orange decoration (placed first, at absolute bottom)
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: null,
+            child: Image.asset(
+              'assets/images/orange_bottom.png',
+              width: MediaQuery.of(context).size.width * 0.6,
+              fit: BoxFit.contain,
+              alignment: Alignment.bottomLeft,
+            ),
+          ),
           // Main content
           SafeArea(
             child: SingleChildScrollView(
@@ -35,80 +49,119 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                const SizedBox(height: 15),
+                const SizedBox(height: 10),
 
                 // Logo
-                _buildLogo(),
+                Padding(
+                  padding: const EdgeInsets.only(left: 0),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Image.asset(
+                      'assets/images/logoForLogin.png',
+                      height: 70,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ),
 
-                const SizedBox(height: 15),
+                const SizedBox(height: 80),
 
                 // Illustration
                 _buildIllustration(),
 
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
 
                 // Subtitle
                 _buildSubtitle(),
 
-                const SizedBox(height: 15),
+                const SizedBox(height: 12),
 
                 // Welcome title
                 const Text(
                   'Welcome',
                   style: TextStyle(
-                    fontSize: 34,
-                    fontWeight: FontWeight.w300,
-                    color: AppColors.textPrimary,
-                    letterSpacing: 1.5,
+                    fontFamily: 'Qilka',
+                    fontSize: 36,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF5C4033),
+                    letterSpacing: 1.0,
+                    height: 1.2,
                   ),
                 ),
 
-                const SizedBox(height: 15),
+                const SizedBox(height: 12),
 
                 // Username field
                 _buildCompactField('ユーザーネーム', _usernameController, false),
 
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
 
                 // Password field
                 _buildCompactField('パスワード', _passwordController, true),
 
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
 
                 // Login link
                 _buildLoginLink(),
 
-                const SizedBox(height: 15),
+                const SizedBox(height: 10),
 
                 // Terms and conditions text
                 _buildTermsText(),
 
-                const SizedBox(height: 12),
-
-                // New registration section
-                _buildNewRegistrationSection(),
-
-                const SizedBox(height: 15),
+                const SizedBox(height: 40),
                 ],
               ),
             ),
           ),
         ),
-        // Orange decorations (custom wave shapes)
-        // Top right orange wave decoration
+        // Top right orange decoration
         Positioned(
           top: 0,
           right: 0,
           child: IgnorePointer(
-            child: TopOrangeWave(),
+            child: Image.asset(
+              'assets/images/orange_top.png',
+              width: MediaQuery.of(context).size.width * 0.6,
+              fit: BoxFit.contain,
+            ),
           ),
         ),
-        // Bottom left orange wave decoration
+        // Bottom right registration section
         Positioned(
-          bottom: 0,
-          left: 0,
-          child: IgnorePointer(
-            child: BottomOrangeWave(),
+          bottom: 32,
+          right: 32,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pushNamed(context, '/onboarding');
+                },
+                style: TextButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  minimumSize: Size(0, 0),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: const Text(
+                  '新規登録',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.textSecondary,
+                    decoration: TextDecoration.none,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                "Don't Have an Account?",
+                style: TextStyle(
+                  fontSize: 11,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
           ),
         ),
         ],
@@ -131,7 +184,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     return Image.asset(
       'assets/images/front.png',
       width: double.infinity,
-      height: 180,
+      height: 220,
       fit: BoxFit.contain,
     );
   }
@@ -196,7 +249,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
           fontSize: 16,
           fontWeight: FontWeight.w600,
           color: AppColors.primaryOrange,
-          decoration: TextDecoration.underline,
+          decoration: TextDecoration.none,
         ),
       ),
     );
