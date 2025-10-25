@@ -29,24 +29,24 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
           // Orange decorations
           // Top right orange decoration
           Positioned(
-            top: 0,
-            right: 0,
+            top: -20,
+            right: -20,
             child: Image.asset(
               'assets/images/orange_top.png',
-              width: 150,
-              height: 120,
-              fit: BoxFit.cover,
+              width: 180,
+              height: 180,
+              fit: BoxFit.contain,
             ),
           ),
           // Bottom left orange decoration
           Positioned(
-            bottom: 0,
-            left: 0,
+            bottom: -20,
+            left: -20,
             child: Image.asset(
               'assets/images/orange_bottom.png',
-              width: 150,
-              height: 120,
-              fit: BoxFit.cover,
+              width: 180,
+              height: 180,
+              fit: BoxFit.contain,
             ),
           ),
           // Main content
@@ -136,7 +136,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     return Image.asset(
       'assets/images/front.png',
       width: double.infinity,
-      height: 240,
+      height: 180,
       fit: BoxFit.contain,
     );
   }
