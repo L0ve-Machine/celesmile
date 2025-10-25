@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../constants/colors.dart';
 import '../services/auth_service.dart';
 import '../widgets/orange_wave_painter.dart';
@@ -58,16 +57,21 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                     alignment: Alignment.centerLeft,
                     child: Image.asset(
                       'assets/images/logoForLogin.png',
-                      height: 70,
+                      height: 68,
                       fit: BoxFit.contain,
                     ),
                   ),
                 ),
 
-                const SizedBox(height: 80),
+                const SizedBox(height: 75),
 
                 // Illustration
-                _buildIllustration(),
+                Image.asset(
+                  'assets/images/front.png',
+                  width: double.infinity,
+                  height: 210,
+                  fit: BoxFit.contain,
+                ),
 
                 const SizedBox(height: 8),
 
@@ -81,7 +85,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                   'Welcome',
                   style: TextStyle(
                     fontFamily: 'Qilka',
-                    fontSize: 36,
+                    fontSize: 35,
                     fontWeight: FontWeight.w700,
                     color: Color(0xFF5C4033),
                     letterSpacing: 1.0,

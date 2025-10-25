@@ -44,7 +44,11 @@
       "Bash(git init:*)",
       "Bash(git remote add:*)",
       "Bash(copy \"assets\\images\\howTo1.png\" \"assets\\images\\2.png\")",
-      "Bash(flutter pub add:*)"
+      "Bash(flutter pub add:*)",
+      "Bash(git log:*)",
+      "Bash(flutter clean:*)",
+      "Bash(copy:*)",
+      "Bash(flutter pub remove:*)"
     ],
     "deny": [],
     "ask": []

@@ -40,7 +40,6 @@ dependencies:
   flutter_svg: ^2.0.10
   image_picker: ^1.0.4
   flutter_dotenv: ^5.1.0
-  google_fonts: ^6.3.2
 
 dev_dependencies:
   flutter_test:
@@ -117,5 +116,5 @@ flutter:
   fonts:
     - family: Qilka
       fonts:
-        - asset: assets/fonts/qilka/Qilka-Bold copy.otf
+        - asset: assets/fonts/qilka/Qilka-Bold.otf
           weight: 700
