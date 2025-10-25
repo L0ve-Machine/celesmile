@@ -7,8 +7,8 @@ class TopOrangeWave extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return CustomPaint(
-      size: Size(MediaQuery.of(context).size.width * 0.4,
-                 MediaQuery.of(context).size.height * 0.22),
+      size: Size(MediaQuery.of(context).size.width * 0.55,
+                 MediaQuery.of(context).size.height * 0.28),
       painter: TopOrangeWavePainter(),
     );
   }
@@ -26,22 +26,24 @@ class TopOrangeWavePainter extends CustomPainter {
     // Start from top-right corner
     path.moveTo(size.width, 0);
 
-    // Draw the wave curve
-    path.lineTo(size.width, size.height * 0.7);
+    // Right edge
+    path.lineTo(size.width, size.height * 0.5);
 
-    // Curved bottom edge
-    path.quadraticBezierTo(
-      size.width * 0.8, size.height * 0.9,
-      size.width * 0.5, size.height * 0.85,
+    // Bottom curved edge - smoother wave
+    path.cubicTo(
+      size.width * 0.7, size.height * 0.9,  // Control point 1
+      size.width * 0.3, size.height * 1.0,  // Control point 2
+      size.width * 0.1, size.height * 0.7,  // End point
     );
 
+    // Continue curve to left edge
     path.quadraticBezierTo(
-      size.width * 0.2, size.height * 0.8,
-      0, size.height,
+      size.width * 0.05, size.height * 0.6,
+      size.width * 0.15, size.height * 0.3,
     );
 
     // Back to top
-    path.lineTo(0, 0);
+    path.lineTo(size.width * 0.3, 0);
     path.close();
 
     canvas.drawPath(path, paint);
@@ -57,8 +59,8 @@ class BottomOrangeWave extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return CustomPaint(
-      size: Size(MediaQuery.of(context).size.width * 0.35,
-                 MediaQuery.of(context).size.height * 0.18),
+      size: Size(MediaQuery.of(context).size.width * 0.45,
+                 MediaQuery.of(context).size.height * 0.25),
       painter: BottomOrangeWavePainter(),
     );
   }
@@ -76,22 +78,24 @@ class BottomOrangeWavePainter extends CustomPainter {
     // Start from bottom-left corner
     path.moveTo(0, size.height);
 
-    // Draw the wave curve
-    path.lineTo(0, size.height * 0.3);
+    // Left edge
+    path.lineTo(0, size.height * 0.5);
 
-    // Curved top edge
-    path.quadraticBezierTo(
-      size.width * 0.2, size.height * 0.1,
-      size.width * 0.5, size.height * 0.15,
+    // Top curved edge - smoother wave
+    path.cubicTo(
+      size.width * 0.3, size.height * 0.1,  // Control point 1
+      size.width * 0.7, size.height * 0.0,  // Control point 2
+      size.width * 0.9, size.height * 0.3,  // End point
     );
 
+    // Continue to right edge
     path.quadraticBezierTo(
-      size.width * 0.8, size.height * 0.2,
-      size.width, 0,
+      size.width * 0.95, size.height * 0.4,
+      size.width * 0.85, size.height * 0.7,
     );
 
     // Back to bottom
-    path.lineTo(size.width, size.height);
+    path.lineTo(size.width * 0.7, size.height);
     path.close();
 
     canvas.drawPath(path, paint);
