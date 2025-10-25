@@ -298,12 +298,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
             const SizedBox(height: 20),
 
-            // Main content - image with border that fits the image exactly
+            // Main content - image with border around its actual size
             Expanded(
               flex: 3,
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 20),
+              child: Center(
                 child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 20),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
@@ -315,9 +315,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     borderRadius: BorderRadius.circular(10),
                     child: Image.asset(
                       centerImage,
-                      fit: BoxFit.cover,
-                      width: double.infinity,
-                      height: double.infinity,
+                      fit: BoxFit.contain,
                     ),
                   ),
                 ),
