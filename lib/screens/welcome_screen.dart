@@ -26,29 +26,6 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
       backgroundColor: AppColors.lightBeige,
       body: Stack(
         children: [
-          // Orange decorations
-          // Top right orange decoration
-          Positioned(
-            top: 0,
-            right: 0,
-            child: Image.asset(
-              'assets/images/orange_top.png',
-              width: 200,
-              height: 150,
-              fit: BoxFit.fill,
-            ),
-          ),
-          // Bottom left orange decoration
-          Positioned(
-            bottom: 0,
-            left: 0,
-            child: Image.asset(
-              'assets/images/orange_bottom.png',
-              width: 200,
-              height: 150,
-              fit: BoxFit.fill,
-            ),
-          ),
           // Main content
           SafeArea(
             child: SingleChildScrollView(
@@ -113,6 +90,33 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                 const SizedBox(height: 15),
                 ],
               ),
+            ),
+          ),
+        ),
+        // Orange decorations (placed after content to be on top)
+        // Top right orange decoration
+        Positioned(
+          top: 0,
+          right: 0,
+          child: IgnorePointer(
+            child: Image.asset(
+              'assets/images/orange_top.png',
+              width: 200,
+              height: 150,
+              fit: BoxFit.fill,
+            ),
+          ),
+        ),
+        // Bottom left orange decoration - anchored to absolute bottom
+        Positioned(
+          bottom: 0,
+          left: 0,
+          child: IgnorePointer(
+            child: Image.asset(
+              'assets/images/orange_bottom.png',
+              width: 200,
+              height: 150,
+              fit: BoxFit.fill,
             ),
           ),
         ),
