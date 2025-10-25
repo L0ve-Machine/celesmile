@@ -77,7 +77,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   end: Alignment.bottomRight,
                   colors: [
                     AppColors.primaryOrange.withOpacity(0.2),
-                    AppColors.secondaryYellow.withOpacity(0.2),
+                    AppColors.lightBeige.withOpacity(0.2),
                   ],
                 ),
               ),
@@ -181,7 +181,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       decoration: BoxDecoration(
-        color: AppColors.backgroundGray,
+        color: Colors.grey[50],
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: AppColors.lightGray,
@@ -195,7 +195,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             height: 40,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: AppColors.secondaryYellow.withOpacity(0.3),
+              color: AppColors.lightBeige.withOpacity(0.3),
             ),
             child: Icon(
               icon,
