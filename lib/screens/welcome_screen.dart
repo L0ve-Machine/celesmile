@@ -101,9 +101,9 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
           child: IgnorePointer(
             child: Image.asset(
               'assets/images/orange_top.png',
-              width: 200,
-              height: 150,
-              fit: BoxFit.fill,
+              width: MediaQuery.of(context).size.width * 0.45,
+              height: MediaQuery.of(context).size.height * 0.25,
+              fit: BoxFit.cover,
             ),
           ),
         ),
@@ -114,9 +114,9 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
           child: IgnorePointer(
             child: Image.asset(
               'assets/images/orange_bottom.png',
-              width: 200,
-              height: 150,
-              fit: BoxFit.fill,
+              width: MediaQuery.of(context).size.width * 0.45,
+              height: MediaQuery.of(context).size.height * 0.20,
+              fit: BoxFit.cover,
             ),
           ),
         ),
