@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../constants/colors.dart';
 import '../services/auth_service.dart';
+import '../widgets/orange_wave_painter.dart';
 
 class WelcomeScreen extends StatefulWidget {
   const WelcomeScreen({super.key});
@@ -93,31 +94,21 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
             ),
           ),
         ),
-        // Orange decorations (placed after content to be on top)
-        // Top right orange decoration
+        // Orange decorations (custom wave shapes)
+        // Top right orange wave decoration
         Positioned(
           top: 0,
           right: 0,
           child: IgnorePointer(
-            child: Image.asset(
-              'assets/images/orange_top.png',
-              width: MediaQuery.of(context).size.width * 0.45,
-              height: MediaQuery.of(context).size.height * 0.25,
-              fit: BoxFit.cover,
-            ),
+            child: TopOrangeWave(),
           ),
         ),
-        // Bottom left orange decoration - anchored to absolute bottom
+        // Bottom left orange wave decoration
         Positioned(
           bottom: 0,
           left: 0,
           child: IgnorePointer(
-            child: Image.asset(
-              'assets/images/orange_bottom.png',
-              width: MediaQuery.of(context).size.width * 0.45,
-              height: MediaQuery.of(context).size.height * 0.20,
-              fit: BoxFit.cover,
-            ),
+            child: BottomOrangeWave(),
           ),
         ),
         ],
