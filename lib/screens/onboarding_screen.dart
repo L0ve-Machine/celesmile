@@ -21,158 +21,164 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pushNamed(context, '/phone-verification');
-            },
-            child: Text(
-              'スキップ',
-              style: TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-              ),
+      backgroundColor: AppColors.lightBeige,
+      body: SafeArea(
+        child: PageView(
+          controller: _pageController,
+          onPageChanged: (index) {
+            setState(() {
+              _currentPage = index;
+            });
+          },
+          children: [
+            _buildWelcomePage(),
+            _buildHowToPage(
+              stepNumber: '2',
+              centerImage: 'assets/images/2.png',
+              title: '希望のサービスを選択',
+              subtitle: '依頼内容の詳細を入力',
+              pageIndex: 1,
             ),
-          ),
-        ],
-      ),
-      body: PageView(
-        controller: _pageController,
-        onPageChanged: (index) {
-          setState(() {
-            _currentPage = index;
-          });
-        },
-        children: [
-          _buildWelcomePage(),
-          _buildImagePage('assets/images/2.png', 'assets/images/howTo1.png', 1),
-          _buildImagePage('assets/images/3.png', 'assets/images/howTo2.png', 2),
-          _buildImagePage('assets/images/4.png', 'assets/images/howTo3.png', 3),
-        ],
+            _buildHowToPage(
+              stepNumber: '3',
+              centerImage: 'assets/images/3.png',
+              title: '希望の日時を選択',
+              subtitle: '金額を確認して依頼完了！',
+              pageIndex: 2,
+            ),
+            _buildHowToPage(
+              stepNumber: '4',
+              centerImage: 'assets/images/4.png',
+              title: 'サービス実施',
+              subtitle: '指定日に家事キャストを待つだけ！',
+              pageIndex: 3,
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildWelcomePage() {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24.0),
-        child: Column(
-          children: [
-            const Spacer(flex: 2),
+    return Column(
+      children: [
+        const Spacer(flex: 2),
 
-            // Welcome Icon
-            Container(
-              width: 120,
-              height: 120,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    AppColors.primaryOrange.withOpacity(0.2),
-                    AppColors.lightBeige.withOpacity(0.2),
-                  ],
-                ),
-              ),
-              child: Icon(
-                Icons.celebration_rounded,
-                size: 60,
-                color: AppColors.primaryOrange,
-              ),
+        // Welcome Icon
+        Container(
+          width: 120,
+          height: 120,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                AppColors.primaryOrange.withOpacity(0.2),
+                AppColors.lightBeige.withOpacity(0.2),
+              ],
             ),
-
-            const SizedBox(height: 48),
-
-            // Welcome Text
-            Text(
-              '新規登録！',
-              style: TextStyle(
-                fontSize: 36,
-                fontWeight: FontWeight.bold,
-                color: AppColors.primaryOrange,
-                letterSpacing: 2,
-              ),
-              textAlign: TextAlign.center,
-            ),
-
-            const SizedBox(height: 24),
-
-            Text(
-              'Celesmileへようこそ',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
-              ),
-              textAlign: TextAlign.center,
-            ),
-
-            const SizedBox(height: 16),
-
-            Text(
-              '暮らしの出張ケアアプリ\nあなたの生活をもっと豊かに',
-              style: TextStyle(
-                fontSize: 16,
-                color: AppColors.textSecondary,
-                height: 1.5,
-              ),
-              textAlign: TextAlign.center,
-            ),
-
-            const SizedBox(height: 48),
-
-            // Features
-            _buildWelcomeFeature(Icons.home_rounded, '自宅でプロのサービス'),
-            _buildWelcomeFeature(Icons.schedule_rounded, '好きな時間に予約'),
-            _buildWelcomeFeature(Icons.verified_rounded, '安心・安全な認証システム'),
-
-            const Spacer(flex: 2),
-
-            // Page indicator
-            _buildPageIndicator(),
-
-            const SizedBox(height: 32),
-
-            // Next Button
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  _pageController.nextPage(
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeInOut,
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryOrange,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  elevation: 0,
-                ),
-                child: const Text(
-                  '次へ',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 32),
-          ],
+          ),
+          child: Icon(
+            Icons.celebration_rounded,
+            size: 60,
+            color: AppColors.primaryOrange,
+          ),
         ),
-      ),
+
+        const SizedBox(height: 48),
+
+        // Welcome Text
+        Text(
+          '新規登録！',
+          style: TextStyle(
+            fontSize: 36,
+            fontWeight: FontWeight.bold,
+            color: AppColors.primaryOrange,
+            letterSpacing: 2,
+          ),
+          textAlign: TextAlign.center,
+        ),
+
+        const SizedBox(height: 24),
+
+        Text(
+          'Celesmileへようこそ',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textPrimary,
+          ),
+          textAlign: TextAlign.center,
+        ),
+
+        const SizedBox(height: 16),
+
+        Text(
+          '暮らしの出張ケアアプリ\nあなたの生活をもっと豊かに',
+          style: TextStyle(
+            fontSize: 16,
+            color: AppColors.textSecondary,
+            height: 1.5,
+          ),
+          textAlign: TextAlign.center,
+        ),
+
+        const SizedBox(height: 48),
+
+        // Features
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Column(
+            children: [
+              _buildWelcomeFeature(Icons.home_rounded, '自宅でプロのサービス'),
+              _buildWelcomeFeature(Icons.schedule_rounded, '好きな時間に予約'),
+              _buildWelcomeFeature(Icons.verified_rounded, '安心・安全な認証システム'),
+            ],
+          ),
+        ),
+
+        const Spacer(flex: 2),
+
+        // Page indicator
+        _buildPageIndicator(),
+
+        const SizedBox(height: 32),
+
+        // Next Button
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () {
+                _pageController.nextPage(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryOrange,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 0,
+              ),
+              child: const Text(
+                '次へ',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 32),
+      ],
     );
   }
 
@@ -181,7 +187,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       decoration: BoxDecoration(
-        color: Colors.grey[50],
+        color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: AppColors.lightGray,
@@ -219,120 +225,252 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  Widget _buildImagePage(String mainImage, String howToImage, int pageIndex) {
+  Widget _buildHowToPage({
+    required String stepNumber,
+    required String centerImage,
+    required String title,
+    required String subtitle,
+    required int pageIndex,
+  }) {
     bool isLastPage = pageIndex == 3;
 
-    return SafeArea(
-      child: Column(
-        children: [
-          const SizedBox(height: 20),
-
-          // Main image (2.png, 3.png, or 4.png)
-          Expanded(
-            flex: 2,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Image.asset(
-                mainImage,
-                fit: BoxFit.contain,
+    return Column(
+      children: [
+        // Status bar area
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '19:39',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black,
+                ),
               ),
-            ),
-          ),
-
-          const SizedBox(height: 20),
-
-          // HowTo image (howTo1.png, howTo2.png, or howTo3.png)
-          Expanded(
-            flex: 3,
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 24),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
+              Row(
+                children: [
+                  Icon(Icons.signal_cellular_4_bar, size: 16),
+                  SizedBox(width: 4),
+                  Icon(Icons.wifi, size: 16),
+                  SizedBox(width: 4),
+                  Text(
+                    '16%',
+                    style: TextStyle(fontSize: 14),
                   ),
                 ],
               ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: Image.asset(
-                  howToImage,
-                  fit: BoxFit.cover,
-                ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 20),
+
+        // Main content card with image
+        Expanded(
+          flex: 3,
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: Colors.black,
+                width: 2,
               ),
             ),
-          ),
-
-          const SizedBox(height: 32),
-
-          // Page indicator
-          _buildPageIndicator(),
-
-          const SizedBox(height: 32),
-
-          // Buttons
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Column(
+            child: Stack(
               children: [
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      if (isLastPage) {
-                        Navigator.pushNamed(context, '/phone-verification');
-                      } else {
-                        _pageController.nextPage(
-                          duration: const Duration(milliseconds: 300),
-                          curve: Curves.easeInOut,
-                        );
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primaryOrange,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                // Step number badge
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 32,
+                      vertical: 16,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Color(0xFF8B7355), // Brown color from the images
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(10),
+                        bottomRight: Radius.circular(8),
                       ),
-                      elevation: 0,
                     ),
                     child: Text(
-                      isLastPage ? '始める' : '次へ',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
+                      stepNumber,
+                      style: TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
                         color: Colors.white,
                       ),
                     ),
                   ),
                 ),
 
-                if (isLastPage) ...[
-                  const SizedBox(height: 16),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.pushNamed(context, '/');
-                    },
-                    child: Text(
-                      'すでにアカウントをお持ちの方',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: AppColors.textSecondary,
-                        decoration: TextDecoration.underline,
-                      ),
+                // Center image
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Image.asset(
+                      centerImage,
+                      fit: BoxFit.contain,
                     ),
                   ),
-                ],
+                ),
               ],
             ),
           ),
+        ),
 
-          const SizedBox(height: 32),
-        ],
-      ),
+        const SizedBox(height: 32),
+
+        // Title and subtitle
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            color: Colors.black,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          subtitle,
+          style: TextStyle(
+            fontSize: 16,
+            color: Colors.grey[600],
+          ),
+        ),
+
+        const SizedBox(height: 32),
+
+        // Page indicator dots
+        _buildPageIndicator(),
+
+        const SizedBox(height: 32),
+
+        // Navigation buttons
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Column(
+            children: [
+              // 次へ進む button (white with border)
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () {
+                    if (isLastPage) {
+                      Navigator.pushNamed(context, '/phone-verification');
+                    } else {
+                      _pageController.nextPage(
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeInOut,
+                      );
+                    }
+                  },
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    side: BorderSide(color: Colors.grey[400]!, width: 1),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                  ),
+                  child: Text(
+                    '次へ進む',
+                    style: TextStyle(
+                      fontSize: 18,
+                      color: Colors.black,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // ログインする button (brown)
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pushNamed(context, '/');
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Color(0xFF8B7355),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        'ログインする',
+                        style: TextStyle(
+                          fontSize: 18,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      Icon(
+                        Icons.arrow_forward,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 40),
+
+        // お困りですか？ floating button
+        Positioned(
+          bottom: 100,
+          right: 20,
+          child: Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppColors.primaryOrange,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.2),
+                  blurRadius: 8,
+                  offset: Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.support_agent,
+                  color: Colors.white,
+                  size: 32,
+                ),
+                Text(
+                  'お困りですか？',
+                  style: TextStyle(
+                    fontSize: 8,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -341,16 +479,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       mainAxisAlignment: MainAxisAlignment.center,
       children: List.generate(4, (index) {
         bool isActive = _currentPage == index;
-        return AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
+        return Container(
           margin: const EdgeInsets.symmetric(horizontal: 4),
-          width: isActive ? 24 : 8,
-          height: 8,
+          width: isActive ? 12 : 8,
+          height: isActive ? 12 : 8,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(4),
+            shape: BoxShape.circle,
             color: isActive
-                ? AppColors.primaryOrange
-                : Colors.grey[300],
+                ? (_currentPage == 0 ? AppColors.primaryOrange : Color(0xFF8B7355))
+                : Colors.grey[400],
           ),
         );
       }),
