@@ -41,7 +41,9 @@
       "Bash(del:*)",
       "Bash(git reset:*)",
       "Bash(powershell -Command \"Remove-Item -Path .git -Recurse -Force\")",
-      "Bash(git init:*)"
+      "Bash(git init:*)",
+      "Bash(git remote add:*)",
+      "Bash(copy \"assets\\images\\howTo1.png\" \"assets\\images\\2.png\")"
     ],
     "deny": [],
     "ask": []
