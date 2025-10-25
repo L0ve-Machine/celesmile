@@ -29,24 +29,24 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
           // Orange decorations
           // Top right orange decoration
           Positioned(
-            top: -20,
-            right: -20,
+            top: 0,
+            right: 0,
             child: Image.asset(
               'assets/images/orange_top.png',
-              width: 180,
-              height: 180,
-              fit: BoxFit.contain,
+              width: 200,
+              height: 150,
+              fit: BoxFit.fill,
             ),
           ),
           // Bottom left orange decoration
           Positioned(
-            bottom: -20,
-            left: -20,
+            bottom: 0,
+            left: 0,
             child: Image.asset(
               'assets/images/orange_bottom.png',
-              width: 180,
-              height: 180,
-              fit: BoxFit.contain,
+              width: 200,
+              height: 150,
+              fit: BoxFit.fill,
             ),
           ),
           // Main content
