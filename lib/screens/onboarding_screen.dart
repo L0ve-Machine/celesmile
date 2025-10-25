@@ -268,32 +268,41 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       children: [
         Column(
           children: [
-            // Top navigation bar
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  // Back button
-                  IconButton(
-                    onPressed: _goBack,
-                    icon: Icon(
-                      Icons.arrow_back,
-                      color: Colors.black54,
-                      size: 28,
-                    ),
+            // Top navigation bar with separator line
+            Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Back button
+                      IconButton(
+                        onPressed: _goBack,
+                        icon: Icon(
+                          Icons.arrow_back,
+                          color: Colors.black54,
+                          size: 28,
+                        ),
+                      ),
+                      // Close button
+                      IconButton(
+                        onPressed: _goToLogin,
+                        icon: Icon(
+                          Icons.close,
+                          color: Colors.black54,
+                          size: 28,
+                        ),
+                      ),
+                    ],
                   ),
-                  // Close button
-                  IconButton(
-                    onPressed: _goToLogin,
-                    icon: Icon(
-                      Icons.close,
-                      color: Colors.black54,
-                      size: 28,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+                // Separator line
+                Container(
+                  height: 1,
+                  color: Colors.grey[300],
+                ),
+              ],
             ),
 
             const SizedBox(height: 20),
@@ -322,7 +331,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ),
             ),
 
-            const SizedBox(height: 32),
+            const SizedBox(height: 16),
 
             // Title and subtitle
             Text(
@@ -354,34 +363,51 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: SizedBox(
                 width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: () {
-                    if (isLastPage) {
-                      // Go to phone verification for new registration
-                      Navigator.pushNamed(context, '/phone-verification');
-                    } else {
-                      _pageController.nextPage(
-                        duration: const Duration(milliseconds: 300),
-                        curve: Curves.easeInOut,
-                      );
-                    }
-                  },
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    side: BorderSide(color: Colors.grey[400]!, width: 1),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30),
-                    ),
-                  ),
-                  child: Text(
-                    isLastPage ? '新規登録へ' : '次へ進む',
-                    style: TextStyle(
-                      fontSize: 18,
-                      color: Colors.black,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
+                child: isLastPage
+                    ? ElevatedButton(
+                        onPressed: () {
+                          Navigator.pushNamed(context, '/phone-verification');
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primaryOrange,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                          elevation: 0,
+                        ),
+                        child: Text(
+                          '新規登録へ',
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      )
+                    : OutlinedButton(
+                        onPressed: () {
+                          _pageController.nextPage(
+                            duration: const Duration(milliseconds: 300),
+                            curve: Curves.easeInOut,
+                          );
+                        },
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          side: BorderSide(color: Colors.grey[400]!, width: 1),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(30),
+                          ),
+                        ),
+                        child: Text(
+                          '次へ進む',
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: Colors.black,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
               ),
             ),
 

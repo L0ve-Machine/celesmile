@@ -24,13 +24,39 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.lightBeige,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
+      body: Stack(
+        children: [
+          // Orange decorations
+          // Top right orange decoration
+          Positioned(
+            top: 0,
+            right: 0,
+            child: Image.asset(
+              'assets/images/orange_top.png',
+              width: 150,
+              height: 120,
+              fit: BoxFit.cover,
+            ),
+          ),
+          // Bottom left orange decoration
+          Positioned(
+            bottom: 0,
+            left: 0,
+            child: Image.asset(
+              'assets/images/orange_bottom.png',
+              width: 150,
+              height: 120,
+              fit: BoxFit.cover,
+            ),
+          ),
+          // Main content
+          SafeArea(
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
                 const SizedBox(height: 15),
 
                 // Logo
@@ -85,10 +111,12 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                 _buildNewRegistrationSection(),
 
                 const SizedBox(height: 15),
-              ],
+                ],
+              ),
             ),
           ),
         ),
+        ],
       ),
     );
   }
