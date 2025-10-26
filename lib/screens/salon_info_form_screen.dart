@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../constants/colors.dart';
-import '../services/provider_database_service.dart';
+import '../services/mysql_service.dart';
 
 class SalonInfoFormScreen extends StatefulWidget {
   const SalonInfoFormScreen({super.key});
@@ -89,7 +89,7 @@ class _SalonInfoFormScreenState extends State<SalonInfoFormScreen> {
     super.dispose();
   }
 
-  void _saveSalonInfo() {
+  Future<void> _saveSalonInfo() async {
     if (_formKey.currentState!.validate()) {
       if (_selectedCategory == null) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -105,47 +105,52 @@ class _SalonInfoFormScreenState extends State<SalonInfoFormScreen> {
         return;
       }
 
-      final providerDb = ProviderDatabaseService();
-      final salonId = DateTime.now().millisecondsSinceEpoch.toString();
+      final salonId = 'salon_${DateTime.now().millisecondsSinceEpoch}';
 
-      final salonInfo = SalonInfo(
-        id: salonId,
-        providerId: _providerId ?? '',
-        salonName: _salonNameController.text,
-        category: _selectedCategory!,
-        subcategories: _selectedSubcategories,
-        prefecture: _selectedPrefecture!,
-        city: _cityController.text,
-        address: _addressController.text,
-        building: _buildingController.text,
-        description: _descriptionController.text,
-        businessHours: {
-          '月': '10:00-18:00',
-          '火': '10:00-18:00',
-          '水': '10:00-18:00',
-          '木': '10:00-18:00',
-          '金': '10:00-18:00',
-          '土': '10:00-16:00',
-          '日': '休み',
-        },
-        homeVisit: _homeVisit,
-        createdAt: DateTime.now(),
-      );
+      final salonData = {
+        'id': salonId,
+        'provider_id': _providerId ?? 'provider_test',
+        'salon_name': _salonNameController.text,
+        'category': _selectedCategory!,
+        'prefecture': _selectedPrefecture!,
+        'city': _cityController.text,
+        'address': _addressController.text,
+        'description': _descriptionController.text,
+      };
 
-      providerDb.createSalon(salonInfo);
+      try {
+        final success = await MySQLService.instance.saveSalon(salonData);
 
-      Navigator.pop(context, {
-        'completed': true,
-        'salonId': salonId,
-        'providerId': _providerId,
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('サロン情報が保存されました'),
-          backgroundColor: Colors.green,
-        ),
-      );
+        if (success && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('サロン情報を保存しました'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          Navigator.pop(context, {
+            'completed': true,
+            'salonId': salonId,
+            'providerId': _providerId,
+          });
+        } else if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('サロン情報の保存に失敗しました'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('エラーが発生しました: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
     }
   }
 

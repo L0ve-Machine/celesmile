@@ -105,6 +105,7 @@ class CelesmileApp extends StatelessWidget {
         '/provider-profile-form': (context) =>
             const ProviderProfileFormScreen(),
         '/salon-info-form': (context) => const SalonInfoFormScreen(),
+        '/salon-registration': (context) => const SalonInfoFormScreen(),
         '/listing-information': (context) => const ListingInformationScreen(),
         '/menu-registration': (context) => const MenuRegistrationScreen(),
         '/identity-verification': (context) => const IdentityVerificationScreen(),
