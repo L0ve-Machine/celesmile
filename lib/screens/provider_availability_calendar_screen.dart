@@ -117,8 +117,17 @@ class _ProviderAvailabilityCalendarScreenState extends State<ProviderAvailabilit
   }
 
   void _previousMonth() {
+    final newMonth = DateTime(_selectedMonth.year, _selectedMonth.month - 1);
+    final now = DateTime.now();
+    final currentMonth = DateTime(now.year, now.month);
+
+    // Don't allow going to past months
+    if (newMonth.isBefore(currentMonth)) {
+      return;
+    }
+
     setState(() {
-      _selectedMonth = DateTime(_selectedMonth.year, _selectedMonth.month - 1);
+      _selectedMonth = newMonth;
     });
   }
 
@@ -153,6 +162,9 @@ class _ProviderAvailabilityCalendarScreenState extends State<ProviderAvailabilit
           await MySQLService.instance.updateAvailability(availabilityData);
         }
       }
+
+      // Reload availability after saving
+      await _loadAvailability();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -351,6 +363,9 @@ class _ProviderAvailabilityCalendarScreenState extends State<ProviderAvailabilit
                   }
 
                   final date = DateTime(_selectedMonth.year, _selectedMonth.month, dayNumber);
+                  final now = DateTime.now();
+                  final today = DateTime(now.year, now.month, now.day);
+                  final isPastDate = date.isBefore(today);
                   final isToday = DateTime.now().year == date.year &&
                       DateTime.now().month == date.month &&
                       DateTime.now().day == date.day;
@@ -363,7 +378,7 @@ class _ProviderAvailabilityCalendarScreenState extends State<ProviderAvailabilit
 
                   return Expanded(
                     child: GestureDetector(
-                      onTap: () {
+                      onTap: isPastDate ? null : () {
                         setState(() {
                           _selectedDate = date;
                         });
@@ -372,18 +387,22 @@ class _ProviderAvailabilityCalendarScreenState extends State<ProviderAvailabilit
                         height: 50,
                         margin: const EdgeInsets.all(2),
                         decoration: BoxDecoration(
-                          color: isSelected
-                              ? AppColors.accentBlue
-                              : hasAvailability
-                                  ? Colors.green[50]
-                                  : Colors.white,
+                          color: isPastDate
+                              ? Colors.grey[200]
+                              : isSelected
+                                  ? AppColors.accentBlue
+                                  : hasAvailability
+                                      ? Colors.green[50]
+                                      : Colors.white,
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(
-                            color: isToday
-                                ? AppColors.primaryOrange
-                                : isSelected
-                                    ? AppColors.accentBlue
-                                    : Colors.grey[300]!,
+                            color: isPastDate
+                                ? Colors.grey[300]!
+                                : isToday
+                                    ? AppColors.primaryOrange
+                                    : isSelected
+                                        ? AppColors.accentBlue
+                                        : Colors.grey[300]!,
                             width: isToday ? 2 : 1,
                           ),
                         ),
@@ -395,9 +414,11 @@ class _ProviderAvailabilityCalendarScreenState extends State<ProviderAvailabilit
                                 style: TextStyle(
                                   fontSize: 14,
                                   fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                                  color: isSelected
-                                      ? Colors.white
-                                      : AppColors.textPrimary,
+                                  color: isPastDate
+                                      ? Colors.grey[400]
+                                      : isSelected
+                                          ? Colors.white
+                                          : AppColors.textPrimary,
                                 ),
                               ),
                             ),
