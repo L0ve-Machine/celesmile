@@ -76,6 +76,23 @@ app.get('/api/salons/:providerId', async (req, res) => {
   }
 });
 
+// Get single salon by ID
+app.get('/api/salon/:salonId', async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      'SELECT * FROM salons WHERE id = ?',
+      [req.params.salonId]
+    );
+    if (rows.length > 0) {
+      res.json(rows[0]);
+    } else {
+      res.status(404).json({ error: 'Salon not found' });
+    }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Get services with filters
 app.get('/api/services', async (req, res) => {
   try {
@@ -208,6 +225,43 @@ app.patch('/api/bookings/:bookingId', async (req, res) => {
       'UPDATE bookings SET status = ? WHERE id = ?',
       [status, req.params.bookingId]
     );
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get menus by salon
+app.get('/api/menus/:salonId', async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      'SELECT * FROM menus WHERE salon_id = ? ORDER BY created_at DESC',
+      [req.params.salonId]
+    );
+    res.json(rows);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Create/Update menu
+app.post('/api/menus', async (req, res) => {
+  try {
+    const { id, provider_id, salon_id, menu_name, description, price, duration, category } = req.body;
+    const [result] = await pool.query(
+      'INSERT INTO menus (id, provider_id, salon_id, menu_name, description, price, duration, category) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE menu_name=?, description=?, price=?, duration=?, category=?',
+      [id, provider_id, salon_id, menu_name, description, price, duration, category, menu_name, description, price, duration, category]
+    );
+    res.json({ success: true, id });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Delete menu
+app.delete('/api/menus/:menuId', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM menus WHERE id = ?', [req.params.menuId]);
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error.message });

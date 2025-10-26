@@ -67,6 +67,9 @@ class _SalonInfoFormScreenState extends State<SalonInfoFormScreen> {
   };
 
   String? _providerId;
+  String? _salonId;
+  bool _isEditMode = false;
+  bool _isLoading = true;
 
   @override
   void didChangeDependencies() {
@@ -76,6 +79,50 @@ class _SalonInfoFormScreenState extends State<SalonInfoFormScreen> {
       _providerId = args;
     } else if (args is Map) {
       _providerId = args['providerId'] as String?;
+      _salonId = args['salonId'] as String?;
+      if (_salonId != null) {
+        _isEditMode = true;
+      }
+    }
+    if (_isEditMode && _isLoading) {
+      _loadSalonData();
+    } else {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _loadSalonData() async {
+    if (_salonId == null) {
+      setState(() {
+        _isLoading = false;
+      });
+      return;
+    }
+
+    try {
+      final salonData = await MySQLService.instance.getSalonById(_salonId!);
+      if (salonData != null && mounted) {
+        setState(() {
+          _salonNameController.text = salonData['salon_name'] ?? '';
+          _addressController.text = salonData['address'] ?? '';
+          _cityController.text = salonData['city'] ?? '';
+          _descriptionController.text = salonData['description'] ?? '';
+          _selectedCategory = salonData['category'];
+          _selectedPrefecture = salonData['prefecture'];
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('サロン情報の読み込みに失敗しました: $e')),
+        );
+      }
     }
   }
 
@@ -105,7 +152,7 @@ class _SalonInfoFormScreenState extends State<SalonInfoFormScreen> {
         return;
       }
 
-      final salonId = 'salon_${DateTime.now().millisecondsSinceEpoch}';
+      final salonId = _salonId ?? 'salon_${DateTime.now().millisecondsSinceEpoch}';
 
       final salonData = {
         'id': salonId,
@@ -123,8 +170,8 @@ class _SalonInfoFormScreenState extends State<SalonInfoFormScreen> {
 
         if (success && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('サロン情報を保存しました'),
+            SnackBar(
+              content: Text(_isEditMode ? 'サロン情報を更新しました' : 'サロン情報を保存しました'),
               backgroundColor: Colors.green,
             ),
           );
@@ -156,6 +203,30 @@ class _SalonInfoFormScreenState extends State<SalonInfoFormScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: Colors.white,
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: Text(
+            _isEditMode ? 'サロン編集' : 'サロン情報',
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          centerTitle: true,
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -165,9 +236,9 @@ class _SalonInfoFormScreenState extends State<SalonInfoFormScreen> {
           icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          'サロン情報',
-          style: TextStyle(
+        title: Text(
+          _isEditMode ? 'サロン編集' : 'サロン情報',
+          style: const TextStyle(
             color: AppColors.textPrimary,
             fontSize: 18,
             fontWeight: FontWeight.w600,
@@ -495,9 +566,9 @@ class _SalonInfoFormScreenState extends State<SalonInfoFormScreen> {
               ),
               elevation: 0,
             ),
-            child: const Text(
-              '保存して次へ',
-              style: TextStyle(
+            child: Text(
+              _isEditMode ? '更新する' : '保存して次へ',
+              style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
                 color: Colors.white,

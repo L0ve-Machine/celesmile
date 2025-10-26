@@ -21,6 +21,14 @@ class MySQLService {
     return [];
   }
 
+  Future<Map<String, dynamic>?> getSalonById(String salonId) async {
+    final response = await http.get(Uri.parse('$baseUrl/salon/$salonId'));
+    if (response.statusCode == 200) {
+      return Map<String, dynamic>.from(json.decode(response.body));
+    }
+    return null;
+  }
+
   // Booking methods
   Future<List<Map<String, dynamic>>> getBookingsByProvider(String providerId) async {
     final response = await http.get(Uri.parse('$baseUrl/bookings/$providerId'));
@@ -125,6 +133,29 @@ class MySQLService {
       headers: {'Content-Type': 'application/json'},
       body: json.encode({'status': status}),
     );
+    return response.statusCode == 200;
+  }
+
+  // Menu methods
+  Future<List<Map<String, dynamic>>> getMenusBySalon(String salonId) async {
+    final response = await http.get(Uri.parse('$baseUrl/menus/$salonId'));
+    if (response.statusCode == 200) {
+      return List<Map<String, dynamic>>.from(json.decode(response.body));
+    }
+    return [];
+  }
+
+  Future<bool> saveMenu(Map<String, dynamic> menuData) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/menus'),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode(menuData),
+    );
+    return response.statusCode == 200;
+  }
+
+  Future<bool> deleteMenu(String menuId) async {
+    final response = await http.delete(Uri.parse('$baseUrl/menus/$menuId'));
     return response.statusCode == 200;
   }
 

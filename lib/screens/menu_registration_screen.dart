@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../constants/colors.dart';
-import '../services/provider_database_service.dart';
+import '../services/mysql_service.dart';
 
 class MenuRegistrationScreen extends StatefulWidget {
   const MenuRegistrationScreen({super.key});
@@ -14,6 +14,7 @@ class _MenuRegistrationScreenState extends State<MenuRegistrationScreen> {
   final List<MenuItemData> _menuItems = [];
   String? _providerId;
   String? _salonId;
+  bool _isLoading = true;
 
   @override
   void didChangeDependencies() {
@@ -21,6 +22,51 @@ class _MenuRegistrationScreenState extends State<MenuRegistrationScreen> {
     final args = ModalRoute.of(context)?.settings.arguments as Map?;
     _providerId = args?['providerId'] as String?;
     _salonId = args?['salonId'] as String?;
+    if (_salonId != null && _isLoading) {
+      _loadMenus();
+    } else {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _loadMenus() async {
+    if (_salonId == null) {
+      setState(() {
+        _isLoading = false;
+      });
+      return;
+    }
+
+    try {
+      final menus = await MySQLService.instance.getMenusBySalon(_salonId!);
+      if (mounted) {
+        setState(() {
+          _menuItems.clear();
+          for (var menu in menus) {
+            final item = MenuItemData();
+            item.id = menu['id'];
+            item.nameController.text = menu['menu_name'] ?? '';
+            item.descriptionController.text = menu['description'] ?? '';
+            item.priceController.text = menu['price']?.toString() ?? '';
+            item.durationController.text = menu['duration']?.toString() ?? '';
+            item.selectedCategory = menu['category'];
+            _menuItems.add(item);
+          }
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('メニューの読み込みに失敗しました: $e')),
+        );
+      }
+    }
   }
 
   void _addMenuItem() {
@@ -29,13 +75,37 @@ class _MenuRegistrationScreenState extends State<MenuRegistrationScreen> {
     });
   }
 
-  void _removeMenuItem(int index) {
+  void _removeMenuItem(int index) async {
+    final item = _menuItems[index];
+
+    // If it's an existing menu (has an id), delete from database
+    if (item.id != null) {
+      try {
+        await MySQLService.instance.deleteMenu(item.id!);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('メニューを削除しました'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('削除に失敗しました: $e')),
+          );
+          return;
+        }
+      }
+    }
+
     setState(() {
       _menuItems.removeAt(index);
     });
   }
 
-  void _saveMenus() {
+  Future<void> _saveMenus() async {
     // Validate all menus
     bool allValid = true;
     for (var item in _menuItems) {
@@ -59,48 +129,73 @@ class _MenuRegistrationScreenState extends State<MenuRegistrationScreen> {
       return;
     }
 
-    final providerDb = ProviderDatabaseService();
+    try {
+      // Save each menu
+      for (var item in _menuItems) {
+        final menuId = item.id ?? 'menu_${DateTime.now().millisecondsSinceEpoch}_${_menuItems.indexOf(item)}';
 
-    // Save each menu
-    for (var item in _menuItems) {
-      final menuId = DateTime.now().millisecondsSinceEpoch.toString() + '_${_menuItems.indexOf(item)}';
+        final menuData = {
+          'id': menuId,
+          'provider_id': _providerId ?? 'provider_test',
+          'salon_id': _salonId ?? '',
+          'menu_name': item.nameController.text,
+          'description': item.descriptionController.text,
+          'price': int.parse(item.priceController.text),
+          'duration': int.parse(item.durationController.text),
+          'category': item.selectedCategory ?? '',
+        };
 
-      final menu = ProviderServiceMenu(
-        id: menuId,
-        providerId: _providerId ?? '',
-        salonId: _salonId ?? '',
-        menuName: item.nameController.text,
-        description: item.descriptionController.text,
-        price: int.parse(item.priceController.text),
-        duration: int.parse(item.durationController.text),
-        category: item.selectedCategory ?? '',
-        createdAt: DateTime.now(),
-      );
+        await MySQLService.instance.saveMenu(menuData);
+      }
 
-      providerDb.addMenu(menu);
-    }
-
-    // Navigate to identity verification instead of going back
-    if (mounted) {
-      Navigator.pushNamedAndRemoveUntil(
-        context,
-        '/identity-verification',
-        (route) => route.settings.name == '/provider-home-dashboard',
-        arguments: _providerId,
-      );
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${_menuItems.length}個のメニューが保存されました。次に本人確認を行ってください。'),
-          backgroundColor: Colors.green,
-          duration: const Duration(seconds: 3),
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${_menuItems.length}個のメニューを保存しました'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('保存に失敗しました: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: Colors.white,
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: const Text(
+            'メニュー編集',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          centerTitle: true,
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -111,7 +206,7 @@ class _MenuRegistrationScreenState extends State<MenuRegistrationScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
-          'メニュー登録',
+          'メニュー編集',
           style: TextStyle(
             color: AppColors.textPrimary,
             fontSize: 18,
@@ -491,6 +586,7 @@ class _MenuRegistrationScreenState extends State<MenuRegistrationScreen> {
 }
 
 class MenuItemData {
+  String? id; // For existing menus
   final TextEditingController nameController = TextEditingController();
   final TextEditingController priceController = TextEditingController();
   final TextEditingController durationController = TextEditingController();
