@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../constants/colors.dart';
 import '../services/database_service.dart';
 import '../services/booking_history_service.dart';
@@ -8,6 +9,7 @@ import '../services/auth_service.dart';
 import '../services/stripe_service.dart';
 import '../services/payment_method_service.dart';
 import '../services/chat_service.dart';
+import '../services/mysql_service.dart';
 
 class BookingConfirmationScreen extends StatefulWidget {
   const BookingConfirmationScreen({super.key});
@@ -38,6 +40,10 @@ class _BookingConfirmationScreenState
   // Saved cards
   List<SavedPaymentMethod> _savedCards = [];
   SavedPaymentMethod? _selectedCard;
+
+  // Selected date and time
+  DateTime? _selectedDate;
+  String? _selectedTimeSlot;
 
   @override
   void dispose() {
@@ -238,7 +244,9 @@ class _BookingConfirmationScreenState
             _buildEditableInfoSection(
               icon: Icons.calendar_today,
               title: '日時',
-              content: '${_service!.date} ${_service!.time}',
+              content: _selectedDate != null && _selectedTimeSlot != null
+                  ? '${DateFormat('yyyy年M月d日').format(_selectedDate!)} $_selectedTimeSlot'
+                  : '${_service!.date} ${_service!.time}（タップして選択）',
               onEdit: _isViewOnly ? null : () => _showDateTimeEditDialog(),
             ),
 
@@ -759,8 +767,8 @@ class _BookingConfirmationScreenState
       customerPhone: userProfile?.phone ?? '未登録',
       customerEmail: userProfile?.email ?? '未登録',
       serviceName: _service!.menuItems.isNotEmpty ? _service!.menuItems[0].name : _service!.title,
-      bookingDate: DateTime.now().add(const Duration(days: 1)), // Default to tomorrow
-      timeSlot: _service!.time,
+      bookingDate: _selectedDate ?? DateTime.now().add(const Duration(days: 1)), // Use selected date or default to tomorrow
+      timeSlot: _selectedTimeSlot ?? _service!.time, // Use selected time slot or service default
       price: price,
       status: 'pending',
       createdAt: DateTime.now(),
@@ -1307,17 +1315,23 @@ class _BookingConfirmationScreenState
   }
 
   void _showDateTimeEditDialog() {
+    if (_service?.providerId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('プロバイダー情報が見つかりません')),
+      );
+      return;
+    }
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('日時を変更'),
-        content: const Text('この機能は準備中です。実際にはプロバイダーのカレンダーから空き時間を選択できます。'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('閉じる'),
-          ),
-        ],
+      builder: (context) => _DateTimeSelectionDialog(
+        providerId: _service!.providerId!,
+        onDateTimeSelected: (date, timeSlot) {
+          setState(() {
+            _selectedDate = date;
+            _selectedTimeSlot = timeSlot;
+          });
+        },
       ),
     );
   }
@@ -1533,6 +1547,370 @@ class _BookingConfirmationScreenState
           ),
         ],
       ),
+    );
+  }
+}
+
+// Date and time selection dialog for booking
+class _DateTimeSelectionDialog extends StatefulWidget {
+  final String providerId;
+  final Function(DateTime, String) onDateTimeSelected;
+
+  const _DateTimeSelectionDialog({
+    required this.providerId,
+    required this.onDateTimeSelected,
+  });
+
+  @override
+  State<_DateTimeSelectionDialog> createState() => _DateTimeSelectionDialogState();
+}
+
+class _DateTimeSelectionDialogState extends State<_DateTimeSelectionDialog> {
+  DateTime _selectedMonth = DateTime.now();
+  DateTime? _selectedDate;
+  String? _selectedTimeSlot;
+  List<Map<String, dynamic>> _availabilityData = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAvailability();
+  }
+
+  Future<void> _loadAvailability() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final availability = await MySQLService.instance.getAvailability(widget.providerId);
+      if (mounted) {
+        setState(() {
+          _availabilityData = availability;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading availability: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  List<String> _getAvailableTimeSlotsForDate(DateTime date) {
+    final dateStr = DateFormat('yyyy-MM-dd').format(date);
+    return _availabilityData
+        .where((slot) => slot['date'] == dateStr && slot['is_available'] == 1)
+        .map((slot) => slot['time_slot'] as String)
+        .toList()
+      ..sort();
+  }
+
+  bool _hasAvailabilityForDate(DateTime date) {
+    return _getAvailableTimeSlotsForDate(date).isNotEmpty;
+  }
+
+  void _previousMonth() {
+    final newMonth = DateTime(_selectedMonth.year, _selectedMonth.month - 1);
+    final now = DateTime.now();
+    final currentMonth = DateTime(now.year, now.month);
+
+    if (newMonth.isBefore(currentMonth)) {
+      return;
+    }
+
+    setState(() {
+      _selectedMonth = newMonth;
+      _selectedDate = null;
+      _selectedTimeSlot = null;
+    });
+  }
+
+  void _nextMonth() {
+    setState(() {
+      _selectedMonth = DateTime(_selectedMonth.year, _selectedMonth.month + 1);
+      _selectedDate = null;
+      _selectedTimeSlot = null;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Container(
+        width: 400,
+        padding: const EdgeInsets.all(20),
+        child: _isLoading
+            ? const SizedBox(
+                height: 300,
+                child: Center(child: CircularProgressIndicator()),
+              )
+            : Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Title
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        '日時を選択',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.pop(context),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Month selector
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.chevron_left),
+                        onPressed: _previousMonth,
+                      ),
+                      Text(
+                        DateFormat('yyyy年 M月').format(_selectedMonth),
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.chevron_right),
+                        onPressed: _nextMonth,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Calendar grid
+                  _buildCalendar(),
+                  const SizedBox(height: 20),
+
+                  // Time slots
+                  if (_selectedDate != null) ...[
+                    const Divider(),
+                    const SizedBox(height: 16),
+                    const Text(
+                      '時間帯を選択',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _buildTimeSlots(),
+                    const SizedBox(height: 20),
+                  ],
+
+                  // Confirm button
+                  if (_selectedDate != null && _selectedTimeSlot != null)
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          widget.onDateTimeSelected(_selectedDate!, _selectedTimeSlot!);
+                          Navigator.pop(context);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primaryOrange,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: Text(
+                          '${DateFormat('M月d日').format(_selectedDate!)} ${_selectedTimeSlot!} を確定',
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+      ),
+    );
+  }
+
+  Widget _buildCalendar() {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final firstDayOfMonth = DateTime(_selectedMonth.year, _selectedMonth.month, 1);
+    final lastDayOfMonth = DateTime(_selectedMonth.year, _selectedMonth.month + 1, 0);
+    final daysInMonth = lastDayOfMonth.day;
+    final startWeekday = firstDayOfMonth.weekday % 7;
+
+    return Column(
+      children: [
+        // Weekday headers
+        Row(
+          children: ['日', '月', '火', '水', '木', '金', '土']
+              .map((day) => Expanded(
+                    child: Center(
+                      child: Text(
+                        day,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ),
+                  ))
+              .toList(),
+        ),
+        const SizedBox(height: 8),
+
+        // Calendar days
+        for (int week = 0; week < 6; week++)
+          if (week * 7 < daysInMonth + startWeekday)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: List.generate(7, (dayIndex) {
+                  final dayNumber = week * 7 + dayIndex - startWeekday + 1;
+                  if (dayNumber < 1 || dayNumber > daysInMonth) {
+                    return const Expanded(child: SizedBox());
+                  }
+
+                  final date = DateTime(_selectedMonth.year, _selectedMonth.month, dayNumber);
+                  final isPastDate = date.isBefore(today);
+                  final hasAvailability = _hasAvailabilityForDate(date);
+                  final isSelected = _selectedDate != null &&
+                      _selectedDate!.year == date.year &&
+                      _selectedDate!.month == date.month &&
+                      _selectedDate!.day == date.day;
+
+                  return Expanded(
+                    child: GestureDetector(
+                      onTap: (isPastDate || !hasAvailability)
+                          ? null
+                          : () {
+                              setState(() {
+                                _selectedDate = date;
+                                _selectedTimeSlot = null;
+                              });
+                            },
+                      child: Container(
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: isPastDate
+                              ? Colors.grey[200]
+                              : isSelected
+                                  ? AppColors.accentBlue
+                                  : hasAvailability
+                                      ? Colors.green[50]
+                                      : Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: isSelected
+                                ? AppColors.accentBlue
+                                : hasAvailability
+                                    ? Colors.green[300]!
+                                    : Colors.grey[300]!,
+                            width: isSelected ? 2 : 1,
+                          ),
+                        ),
+                        child: Center(
+                          child: Text(
+                            dayNumber.toString(),
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                              color: isPastDate
+                                  ? Colors.grey[400]
+                                  : isSelected
+                                      ? Colors.white
+                                      : hasAvailability
+                                          ? AppColors.textPrimary
+                                          : Colors.grey[400],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ),
+            ),
+      ],
+    );
+  }
+
+  Widget _buildTimeSlots() {
+    final availableSlots = _getAvailableTimeSlotsForDate(_selectedDate!);
+
+    if (availableSlots.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.grey[100],
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: const Center(
+          child: Text(
+            'この日は空きがありません',
+            style: TextStyle(
+              fontSize: 14,
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: availableSlots.map((timeSlot) {
+        final isSelected = _selectedTimeSlot == timeSlot;
+        return GestureDetector(
+          onTap: () {
+            setState(() {
+              _selectedTimeSlot = timeSlot;
+            });
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: isSelected ? AppColors.primaryOrange : Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: isSelected ? AppColors.primaryOrange : AppColors.lightGray,
+                width: isSelected ? 2 : 1,
+              ),
+            ),
+            child: Text(
+              timeSlot,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                color: isSelected ? Colors.white : AppColors.textPrimary,
+              ),
+            ),
+          ),
+        );
+      }).toList(),
     );
   }
 }
