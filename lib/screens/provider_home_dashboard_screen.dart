@@ -5,7 +5,9 @@ import '../services/auth_service.dart';
 import '../services/profile_image_service.dart';
 
 class ProviderHomeDashboardScreen extends StatefulWidget {
-  const ProviderHomeDashboardScreen({super.key});
+  final String? providerId;
+
+  const ProviderHomeDashboardScreen({super.key, this.providerId});
 
   @override
   State<ProviderHomeDashboardScreen> createState() => _ProviderHomeDashboardScreenState();
@@ -16,16 +18,9 @@ class _ProviderHomeDashboardScreenState extends State<ProviderHomeDashboardScree
   String? _currentProviderId;
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // Get provider ID from arguments or from logged in user
-    final args = ModalRoute.of(context)?.settings.arguments;
-    if (args != null && args is String) {
-      _currentProviderId = args;
-    } else {
-      // Try to get from logged in user
-      _currentProviderId = AuthService.currentUserProviderId;
-    }
+  void initState() {
+    super.initState();
+    _currentProviderId = widget.providerId ?? AuthService.currentUserProviderId;
   }
 
   @override

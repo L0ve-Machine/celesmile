@@ -22,6 +22,7 @@ import 'screens/menu_registration_screen.dart';
 import 'screens/identity_verification_screen.dart';
 import 'screens/bank_registration_screen.dart';
 import 'screens/provider_verification_status_screen.dart';
+import 'screens/provider_verification_waiting_screen.dart';
 import 'screens/provider_availability_calendar_screen.dart';
 import 'screens/provider_bookings_screen.dart';
 import 'screens/provider_income_summary_screen.dart';
@@ -90,8 +91,17 @@ class CelesmileApp extends StatelessWidget {
             const PosterRegistrationIntroScreen(),
         '/poster-registration-form': (context) =>
             const PosterRegistrationFormScreen(),
-        '/provider-home-dashboard': (context) =>
-            const ProviderHomeDashboardScreen(),
+        '/provider-home-dashboard': (context) {
+          final args = ModalRoute.of(context)?.settings.arguments as String?;
+          return ProviderHomeDashboardScreen(providerId: args);
+        },
+        '/provider-verification-waiting': (context) {
+          final args = ModalRoute.of(context)?.settings.arguments as Map<String, String>?;
+          return ProviderVerificationWaitingScreen(
+            providerId: args?['providerId'] ?? '',
+            sessionId: args?['sessionId'] ?? '',
+          );
+        },
         '/provider-profile-form': (context) =>
             const ProviderProfileFormScreen(),
         '/salon-info-form': (context) => const SalonInfoFormScreen(),

@@ -7,7 +7,7 @@ class DiditService {
   static const String _apiKey = 'wpTfm090BVbZCUyLTmRn1SiuA7F-ru5kZ0i5YCJGWGAa';
 
   // Provider本人確認用のworkflow_id
-  static const String _providerVerificationWorkflowId = 'cce0b449-5fc2-4cbe-b160-5825a1bb9d0d';
+  static const String _providerVerificationWorkflowId = '84095132-b497-4d7e-9ac9-5d9b00d78d69';
 
   // 電話番号を保存
   static String? _currentPhoneNumber;
@@ -188,11 +188,13 @@ class DiditService {
   }
 
   // Provider本人確認セッションを作成（ワークフロー方式）
-  static Future<Map<String, dynamic>> createProviderVerificationSession(String providerId) async {
+  static Future<Map<String, dynamic>> createProviderVerificationSession(
+      String providerId, {String? callbackUrl}) async {
     try {
       final requestBody = {
         'workflow_id': _providerVerificationWorkflowId,
         'vendor_data': providerId,
+        if (callbackUrl != null) 'callback': callbackUrl,
       };
 
       print('📱 DIDIT API Request (Create Provider Verification Session):');
@@ -243,10 +245,52 @@ class DiditService {
     }
   }
 
+  // Webhook から検証状態を取得
+  static Future<Map<String, dynamic>> getVerificationStatus(String sessionId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$_baseUrl/verification-status/$sessionId'),
+      );
+
+      print('📥 DIDIT Verification Status Response:');
+      print('Status: ${response.statusCode}');
+      print('Body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return {
+          'success': true,
+          'status': data['status'],
+          'decision': data['decision'],
+          'data': data,
+        };
+      } else if (response.statusCode == 404) {
+        return {
+          'success': false,
+          'error': 'セッションが見つかりません',
+        };
+      } else {
+        return {
+          'success': false,
+          'error': 'ステータス確認に失敗しました: ${response.statusCode}',
+        };
+      }
+    } catch (e) {
+      print('❌ DIDIT Verification Status Error: $e');
+      return {
+        'success': false,
+        'error': 'エラーが発生しました: $e',
+      };
+    }
+  }
+
   // セッションをクリア
   static void clearSession() {
     _currentPhoneNumber = null;
     _providerSessionId = null;
     _providerVerificationUrl = null;
   }
+
+  // 現在のセッション ID を取得
+  static String? get currentSessionId => _providerSessionId;
 }

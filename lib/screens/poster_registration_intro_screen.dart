@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:url_launcher/url_launcher.dart';
+import 'dart:js' as js;
 import '../constants/colors.dart';
 import '../services/didit_service.dart';
 
@@ -18,33 +20,64 @@ class _PosterRegistrationIntroScreenState extends State<PosterRegistrationIntroS
       _isLoading = true;
     });
 
-    // 仮のprovider IDを生成（実際には認証済みユーザーのIDを使用）
-    final providerId = 'provider_${DateTime.now().millisecondsSinceEpoch}';
+    try {
+      // 仮のprovider IDを生成（実際には認証済みユーザーのIDを使用）
+      final providerId = 'provider_${DateTime.now().millisecondsSinceEpoch}';
 
-    // DIdit認証URL（手動生成済み）
-    final verificationUrl = 'https://verify.didit.me/session/4bTr8NeJAylj';
+      // DID-IT の verification URL（固定）
+      const verificationUrl = 'https://verify.didit.me/session/aAKO5sc_hzmA';
+      const sessionId = 'aAKO5sc_hzmA';
 
-    setState(() {
-      _isLoading = false;
-    });
+      // DID-ITは検証完了後、ユーザーをリダイレクト
+      // URLパラメータに status と verificationSessionId が含まれる
 
-    // DIdit認証URLを開く
-    final url = Uri.parse(verificationUrl);
-    if (await canLaunchUrl(url)) {
-      await launchUrl(url, mode: LaunchMode.externalApplication);
+      print('✅ Verification session info');
+      print('Session ID: $sessionId');
+      print('Verification URL: $verificationUrl');
+      print('Provider ID: $providerId');
+      print('✅ DID-IT will send webhook to backend, frontend will poll for status');
 
-      // 認証完了後の処理のため、provider-home-dashboardに遷移
+      setState(() {
+        _isLoading = false;
+      });
+
+      // DIdit認証URLを開く
+      if (kIsWeb) {
+        // Web では JavaScript で window.open() を使用
+        js.context.callMethod('open', [verificationUrl, '_blank']);
+      } else {
+        // モバイルでは url_launcher を使用
+        final url = Uri.parse(verificationUrl);
+        if (await canLaunchUrl(url)) {
+          await launchUrl(url, mode: LaunchMode.externalApplication);
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('認証URLを開けませんでした')),
+            );
+          }
+          return;
+        }
+      }
+
+      // 申請待機画面に遷移
       if (mounted) {
         Navigator.pushReplacementNamed(
           context,
-          '/provider-home-dashboard',
-          arguments: providerId,
+          '/provider-verification-waiting',
+          arguments: {
+            'providerId': providerId,
+            'sessionId': sessionId,
+          },
         );
       }
-    } else {
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('認証URLを開けませんでした')),
+          SnackBar(content: Text('エラーが発生しました: $e')),
         );
       }
     }
