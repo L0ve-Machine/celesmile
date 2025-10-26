@@ -1,8 +1,54 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../constants/colors.dart';
+import '../services/didit_service.dart';
 
-class PosterRegistrationIntroScreen extends StatelessWidget {
+class PosterRegistrationIntroScreen extends StatefulWidget {
   const PosterRegistrationIntroScreen({super.key});
+
+  @override
+  State<PosterRegistrationIntroScreen> createState() => _PosterRegistrationIntroScreenState();
+}
+
+class _PosterRegistrationIntroScreenState extends State<PosterRegistrationIntroScreen> {
+  bool _isLoading = false;
+
+  Future<void> _startVerification() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    // 仮のprovider IDを生成（実際には認証済みユーザーのIDを使用）
+    final providerId = 'provider_${DateTime.now().millisecondsSinceEpoch}';
+
+    // DIdit認証URL（手動生成済み）
+    final verificationUrl = 'https://verify.didit.me/session/4bTr8NeJAylj';
+
+    setState(() {
+      _isLoading = false;
+    });
+
+    // DIdit認証URLを開く
+    final url = Uri.parse(verificationUrl);
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+
+      // 認証完了後の処理のため、provider-home-dashboardに遷移
+      if (mounted) {
+        Navigator.pushReplacementNamed(
+          context,
+          '/provider-home-dashboard',
+          arguments: providerId,
+        );
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('認証URLを開けませんでした')),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -124,9 +170,7 @@ class PosterRegistrationIntroScreen extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(16.0),
           child: ElevatedButton(
-            onPressed: () {
-              Navigator.pushNamed(context, '/poster-registration-form');
-            },
+            onPressed: _isLoading ? null : _startVerification,
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.pink[400],
               padding: const EdgeInsets.symmetric(vertical: 16),
@@ -135,14 +179,23 @@ class PosterRegistrationIntroScreen extends StatelessWidget {
               ),
               elevation: 0,
             ),
-            child: const Text(
-              '新規掲載手続きに進む',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Colors.white,
-              ),
-            ),
+            child: _isLoading
+                ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      strokeWidth: 2,
+                    ),
+                  )
+                : const Text(
+                    '新規掲載手続きに進む',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
           ),
         ),
       ),

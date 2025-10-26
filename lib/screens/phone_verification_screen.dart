@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../constants/colors.dart';
+import '../services/didit_service.dart';
+import 'sms_verification_screen.dart';
 
 class PhoneVerificationScreen extends StatefulWidget {
   const PhoneVerificationScreen({super.key});
@@ -12,6 +14,7 @@ class PhoneVerificationScreen extends StatefulWidget {
 class _PhoneVerificationScreenState extends State<PhoneVerificationScreen> {
   final TextEditingController _phoneController = TextEditingController();
   bool _isButtonEnabled = false;
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -207,16 +210,39 @@ class _PhoneVerificationScreenState extends State<PhoneVerificationScreen> {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton(
-        onPressed: _isButtonEnabled
-            ? () {
-                // Handle next action
-                // SMS verification would be implemented here
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('SMS認証機能は未実装です'),
-                    duration: Duration(seconds: 2),
-                  ),
-                );
+        onPressed: _isButtonEnabled && !_isLoading
+            ? () async {
+                setState(() {
+                  _isLoading = true;
+                });
+
+                final phoneNumber = _phoneController.text.trim();
+                final result = await DiditService.sendPhoneCode(phoneNumber);
+
+                setState(() {
+                  _isLoading = false;
+                });
+
+                if (result['success'] == true) {
+                  // SMS送信成功 - 認証コード入力画面へ遷移
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => SmsVerificationScreen(
+                        phoneNumber: phoneNumber,
+                      ),
+                    ),
+                  );
+                } else {
+                  // エラー表示
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(result['error'] ?? 'エラーが発生しました'),
+                      backgroundColor: Colors.red,
+                      duration: const Duration(seconds: 3),
+                    ),
+                  );
+                }
               }
             : null,
         style: ElevatedButton.styleFrom(
@@ -229,14 +255,23 @@ class _PhoneVerificationScreenState extends State<PhoneVerificationScreen> {
           ),
           elevation: 0,
         ),
-        child: const Text(
-          '次へ',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            color: Colors.white,
-          ),
-        ),
+        child: _isLoading
+            ? const SizedBox(
+                height: 20,
+                width: 20,
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  strokeWidth: 2,
+                ),
+              )
+            : const Text(
+                '次へ',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
       ),
     );
   }

@@ -83,6 +83,9 @@ class AuthService {
   // 現在ログイン中のユーザー
   static String? _currentUser;
 
+  // 電話番号認証用の一時保存
+  static String? currentUserPhone;
+
   // Initialize test user data
   static bool _initialized = false;
 
