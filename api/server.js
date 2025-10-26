@@ -235,7 +235,7 @@ app.patch('/api/bookings/:bookingId', async (req, res) => {
 app.get('/api/menus/:salonId', async (req, res) => {
   try {
     const [rows] = await pool.query(
-      'SELECT * FROM menus WHERE salon_id = ? ORDER BY created_at DESC',
+      'SELECT * FROM service_menus WHERE salon_id = ? ORDER BY created_at DESC',
       [req.params.salonId]
     );
     res.json(rows);
@@ -249,7 +249,7 @@ app.post('/api/menus', async (req, res) => {
   try {
     const { id, provider_id, salon_id, menu_name, description, price, duration, category } = req.body;
     const [result] = await pool.query(
-      'INSERT INTO menus (id, provider_id, salon_id, menu_name, description, price, duration, category) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE menu_name=?, description=?, price=?, duration=?, category=?',
+      'INSERT INTO service_menus (id, provider_id, salon_id, menu_name, description, price, duration, category) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE menu_name=?, description=?, price=?, duration=?, category=?',
       [id, provider_id, salon_id, menu_name, description, price, duration, category, menu_name, description, price, duration, category]
     );
     res.json({ success: true, id });
@@ -261,7 +261,7 @@ app.post('/api/menus', async (req, res) => {
 // Delete menu
 app.delete('/api/menus/:menuId', async (req, res) => {
   try {
-    await pool.query('DELETE FROM menus WHERE id = ?', [req.params.menuId]);
+    await pool.query('DELETE FROM service_menus WHERE id = ?', [req.params.menuId]);
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error.message });
