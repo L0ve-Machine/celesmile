@@ -156,7 +156,7 @@ class _ProviderAvailabilityCalendarScreenState extends State<ProviderAvailabilit
             'provider_id': _providerId,
             'date': date,
             'time_slot': timeSlot,
-            'is_available': isAvailable,
+            'is_available': isAvailable ? 1 : 0,
           };
 
           await MySQLService.instance.updateAvailability(availabilityData);

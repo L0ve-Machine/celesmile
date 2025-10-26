@@ -180,12 +180,15 @@ app.get('/api/availability/:providerId', async (req, res) => {
 app.post('/api/availability', async (req, res) => {
   try {
     const { id, provider_id, date, time_slot, is_available } = req.body;
+    console.log('POST /api/availability - Request body:', req.body);
     const [result] = await pool.query(
       'INSERT INTO availability_calendar (id, provider_id, date, time_slot, is_available) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE is_available=?',
       [id, provider_id, date, time_slot, is_available, is_available]
     );
+    console.log('POST /api/availability - Success');
     res.json({ success: true, id });
   } catch (error) {
+    console.error('POST /api/availability - Error:', error.message);
     res.status(500).json({ error: error.message });
   }
 });
