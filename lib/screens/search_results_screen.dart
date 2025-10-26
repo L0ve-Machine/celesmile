@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../constants/colors.dart';
 import '../services/database_service.dart';
 import '../services/profile_image_service.dart';
+import '../services/mysql_service.dart';
 
 class SearchResultsScreen extends StatefulWidget {
   const SearchResultsScreen({super.key});
@@ -12,54 +13,23 @@ class SearchResultsScreen extends StatefulWidget {
 
 class _SearchResultsScreenState extends State<SearchResultsScreen> {
   late Map<String, dynamic> searchFilters;
-  List<ServiceModel> filteredServices = [];
+  Future<List<Map<String, dynamic>>>? _servicesFuture;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     // Get search filters passed from dashboard
     searchFilters = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
-    _applyFilters();
+    _loadServices();
   }
 
-  void _applyFilters() {
-    final db = DatabaseService();
-
-    // Get services from database
-    List<ServiceModel> services = db.filterServices(
+  void _loadServices() {
+    _servicesFuture = MySQLService.instance.getServices(
       category: searchFilters['category'],
       subcategory: searchFilters['subcategory'],
       location: searchFilters['location'],
+      search: searchFilters['searchQuery'],
     );
-
-    // Filter by selected date
-    if (searchFilters['selectedDate'] != null) {
-      services = services.where((service) {
-        return _matchesDate(service.date, searchFilters['selectedDate']);
-      }).toList();
-    }
-
-    // Filter by selected time range
-    if (searchFilters['selectedTimeRange'] != null) {
-      services = services.where((service) {
-        return _matchesTimeRange(service.time, searchFilters['selectedTimeRange']);
-      }).toList();
-    }
-
-    // Filter by search query
-    if (searchFilters['searchQuery'] != null && searchFilters['searchQuery'].isNotEmpty) {
-      final query = searchFilters['searchQuery'].toLowerCase();
-      services = services.where((service) {
-        return service.title.toLowerCase().contains(query) ||
-            service.provider.toLowerCase().contains(query) ||
-            service.category.toLowerCase().contains(query) ||
-            service.description.toLowerCase().contains(query);
-      }).toList();
-    }
-
-    setState(() {
-      filteredServices = services;
-    });
   }
 
   bool _matchesDate(String serviceDate, DateTime selectedDate) {
@@ -132,9 +102,30 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
         ),
         centerTitle: true,
       ),
-      body: filteredServices.isEmpty
-          ? _buildEmptyState()
-          : _buildServiceList(),
+      body: FutureBuilder<List<Map<String, dynamic>>>(
+        future: _servicesFuture,
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final servicesData = snapshot.data!;
+
+          // Convert to ServiceModel for compatibility
+          final db = DatabaseService();
+          final allServices = db.filterServices();
+          final filteredServices = servicesData.map((data) {
+            return allServices.firstWhere(
+              (s) => s.id == data['id'],
+              orElse: () => allServices.first,
+            );
+          }).toList();
+
+          return filteredServices.isEmpty
+              ? _buildEmptyState()
+              : _buildServiceList(filteredServices);
+        },
+      ),
     );
   }
 
@@ -170,7 +161,7 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
     );
   }
 
-  Widget _buildServiceList() {
+  Widget _buildServiceList(List<ServiceModel> filteredServices) {
     return Column(
       children: [
         // Results count header

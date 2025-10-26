@@ -4,6 +4,7 @@ import '../constants/colors.dart';
 import '../services/database_service.dart';
 import '../services/notification_service.dart';
 import '../services/profile_image_service.dart';
+import '../services/mysql_service.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -940,42 +941,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildPopularServices() {
-    final db = DatabaseService();
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: MySQLService.instance.getServices(
+        category: _selectedCategory,
+        subcategory: _selectedSubcategory,
+        location: _selectedLocation,
+        search: _searchQuery.isNotEmpty ? _searchQuery : null,
+        limit: 3,
+      ),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return Container(
+            color: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 50),
+            child: const Center(child: CircularProgressIndicator()),
+          );
+        }
 
-    // Get services from database
-    List<ServiceModel> filteredServices = db.filterServices(
-      category: _selectedCategory,
-      subcategory: _selectedSubcategory,
-      location: _selectedLocation,
-    );
+        final servicesData = snapshot.data!;
 
-    // Filter by selected date
-    if (_selectedDate != null) {
-      filteredServices = filteredServices.where((service) {
-        return _matchesDate(service.date, _selectedDate!);
-      }).toList();
-    }
-
-    // Filter by selected time range
-    if (_selectedTimeRange != null) {
-      filteredServices = filteredServices.where((service) {
-        return _matchesTimeRange(service.time, _selectedTimeRange!);
-      }).toList();
-    }
-
-    // Filter by search query
-    if (_searchQuery.isNotEmpty) {
-      filteredServices = filteredServices.where((service) {
-        final query = _searchQuery.toLowerCase();
-        return service.title.toLowerCase().contains(query) ||
-            service.provider.toLowerCase().contains(query) ||
-            service.category.toLowerCase().contains(query) ||
-            service.description.toLowerCase().contains(query);
-      }).toList();
-    }
-
-    // Always limit to 3 services on dashboard
-    filteredServices = filteredServices.take(3).toList();
+        // Convert to ServiceModel for compatibility
+        final db = DatabaseService();
+        final allServices = db.filterServices();
+        List<ServiceModel> filteredServices = servicesData.map((data) {
+          return allServices.firstWhere(
+            (s) => s.id == data['id'],
+            orElse: () => allServices.first,
+          );
+        }).toList();
 
     // Don't show section if no services match
     if (filteredServices.isEmpty) {
@@ -1064,6 +1057,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ...filteredServices.map((service) => _buildServiceCard(service)).toList(),
         ],
       ),
+    );
+      },
     );
   }
 

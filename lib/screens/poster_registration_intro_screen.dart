@@ -25,8 +25,8 @@ class _PosterRegistrationIntroScreenState extends State<PosterRegistrationIntroS
       final providerId = 'provider_${DateTime.now().millisecondsSinceEpoch}';
 
       // DID-IT の verification URL（固定）
-      const verificationUrl = 'https://verify.didit.me/session/aAKO5sc_hzmA';
-      const sessionId = 'aAKO5sc_hzmA';
+      const verificationUrl = 'https://verify.didit.me/session/T5fAMkerjgz_';
+      const sessionId = 'T5fAMkerjgz_';
 
       // DID-ITは検証完了後、ユーザーをリダイレクト
       // URLパラメータに status と verificationSessionId が含まれる

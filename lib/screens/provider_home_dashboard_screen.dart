@@ -3,6 +3,7 @@ import '../constants/colors.dart';
 import '../services/provider_database_service.dart';
 import '../services/auth_service.dart';
 import '../services/profile_image_service.dart';
+import '../services/mysql_service.dart';
 
 class ProviderHomeDashboardScreen extends StatefulWidget {
   final String? providerId;
@@ -68,9 +69,6 @@ class _ProviderHomeDashboardScreenState extends State<ProviderHomeDashboardScree
   }
 
   Widget _buildRegisteredView(ProviderProfile? provider, IdentityVerification? verification) {
-    final salons = _currentProviderId != null
-        ? providerDb.getSalonsByProvider(_currentProviderId!)
-        : [];
 
     return SingleChildScrollView(
       child: Column(
@@ -222,48 +220,68 @@ class _ProviderHomeDashboardScreenState extends State<ProviderHomeDashboardScree
                 const SizedBox(height: 12),
 
                 // Upcoming bookings
-                _buildDashboardCard(
-                  icon: Icons.calendar_today,
-                  iconColor: AppColors.accentBlue,
-                  title: '直近の予約一覧',
-                  subtitle: '（承認／未対応／完了）',
-                  onTap: () {
-                    Navigator.pushNamed(
-                      context,
-                      '/provider-bookings',
-                      arguments: _currentProviderId,
+                FutureBuilder<List<Map<String, dynamic>>>(
+                  future: MySQLService.instance.getBookingsByProvider(_currentProviderId!),
+                  builder: (context, snapshot) {
+                    final upcomingCount = snapshot.hasData
+                        ? snapshot.data!.where((b) => b['status'] != 'cancelled' && b['status'] != 'completed').length
+                        : 0;
+                    return _buildDashboardCard(
+                      icon: Icons.calendar_today,
+                      iconColor: AppColors.accentBlue,
+                      title: '直近の予約一覧',
+                      subtitle: '${upcomingCount}件の予約',
+                      onTap: () {
+                        Navigator.pushNamed(
+                          context,
+                          '/provider-bookings',
+                          arguments: _currentProviderId,
+                        );
+                      },
                     );
                   },
                 ),
                 const SizedBox(height: 12),
 
                 // Revenue summary
-                _buildDashboardCard(
-                  icon: Icons.attach_money,
-                  iconColor: Colors.green,
-                  title: '収益サマリー',
-                  subtitle: '（今月の売上、未入金額）',
-                  onTap: () {
-                    Navigator.pushNamed(
-                      context,
-                      '/provider-income-summary',
-                      arguments: _currentProviderId,
+                FutureBuilder<Map<String, dynamic>>(
+                  future: MySQLService.instance.getRevenueSummary(_currentProviderId!),
+                  builder: (context, snapshot) {
+                    final summary = snapshot.data ?? {'thisMonthTotal': 0, 'pendingTotal': 0};
+                    return _buildDashboardCard(
+                      icon: Icons.attach_money,
+                      iconColor: Colors.green,
+                      title: '収益サマリー',
+                      subtitle: '今月: ¥${summary['thisMonthTotal']}, 未入金: ¥${summary['pendingTotal']}',
+                      onTap: () {
+                        Navigator.pushNamed(
+                          context,
+                          '/provider-income-summary',
+                          arguments: _currentProviderId,
+                        );
+                      },
                     );
                   },
                 ),
                 const SizedBox(height: 12),
 
                 // My salons
-                _buildDashboardCard(
-                  icon: Icons.store,
-                  iconColor: AppColors.primaryOrange,
-                  title: 'マイサロン',
-                  subtitle: '${salons.length}件登録済み',
-                  onTap: () {
-                    Navigator.pushNamed(
-                      context,
-                      '/provider-my-salons',
-                      arguments: _currentProviderId,
+                FutureBuilder<List<Map<String, dynamic>>>(
+                  future: MySQLService.instance.getSalonsByProvider(_currentProviderId!),
+                  builder: (context, snapshot) {
+                    final salonCount = snapshot.hasData ? snapshot.data!.length : 0;
+                    return _buildDashboardCard(
+                      icon: Icons.store,
+                      iconColor: AppColors.primaryOrange,
+                      title: 'マイサロン',
+                      subtitle: '${salonCount}件登録済み',
+                      onTap: () {
+                        Navigator.pushNamed(
+                          context,
+                          '/provider-my-salons',
+                          arguments: _currentProviderId,
+                        );
+                      },
                     );
                   },
                 ),

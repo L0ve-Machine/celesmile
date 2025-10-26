@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../constants/colors.dart';
-import '../services/provider_database_service.dart';
-import '../services/chat_service.dart';
+import '../services/mysql_service.dart';
 
 class ProviderBookingsScreen extends StatefulWidget {
   const ProviderBookingsScreen({super.key});
@@ -12,28 +11,51 @@ class ProviderBookingsScreen extends StatefulWidget {
 
 class _ProviderBookingsScreenState extends State<ProviderBookingsScreen> {
   String? _providerId;
-  final providerDb = ProviderDatabaseService();
   String _filterStatus = 'all';
+  List<Map<String, dynamic>> _bookings = [];
+  bool _isLoading = true;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     _providerId = ModalRoute.of(context)?.settings.arguments as String?;
+    if (_providerId == null) {
+      _providerId = 'provider_test'; // デフォルトのテストプロバイダー
+    }
+    _loadBookings();
+  }
+
+  Future<void> _loadBookings() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final bookings = await MySQLService.instance.getBookingsByProvider(_providerId!);
+      setState(() {
+        _bookings = bookings;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final bookings = _providerId != null
-        ? providerDb.getBookingsByProvider(_providerId!)
-        : [];
-
     // Filter bookings by status
     final filteredBookings = _filterStatus == 'all'
-        ? bookings
-        : bookings.where((b) => b.status == _filterStatus).toList();
+        ? _bookings
+        : _bookings.where((b) => b['status'] == _filterStatus).toList();
 
     // Sort by booking date (newest first)
-    filteredBookings.sort((a, b) => b.bookingDate.compareTo(a.bookingDate));
+    filteredBookings.sort((a, b) {
+      final aDate = DateTime.parse(a['booking_date'] ?? '2000-01-01');
+      final bDate = DateTime.parse(b['booking_date'] ?? '2000-01-01');
+      return bDate.compareTo(aDate);
+    });
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -54,65 +76,70 @@ class _ProviderBookingsScreenState extends State<ProviderBookingsScreen> {
         ),
         centerTitle: true,
       ),
-      body: Column(
-        children: [
-          // Filter tabs
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: Colors.grey[50],
-              border: Border(
-                bottom: BorderSide(color: Colors.grey[300]!, width: 1),
-              ),
-            ),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _buildFilterChip('all', 'すべて', bookings.length),
-                  const SizedBox(width: 8),
-                  _buildFilterChip(
-                    'pending',
-                    '未対応',
-                    bookings.where((b) => b.status == 'pending').length,
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
+              children: [
+                // Filter tabs
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[50],
+                    border: Border(
+                      bottom: BorderSide(color: Colors.grey[300]!, width: 1),
+                    ),
                   ),
-                  const SizedBox(width: 8),
-                  _buildFilterChip(
-                    'confirmed',
-                    '承認済み',
-                    bookings.where((b) => b.status == 'confirmed').length,
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        _buildFilterChip('all', 'すべて', _bookings.length),
+                        const SizedBox(width: 8),
+                        _buildFilterChip(
+                          'pending',
+                          '未対応',
+                          _bookings.where((b) => b['status'] == 'pending').length,
+                        ),
+                        const SizedBox(width: 8),
+                        _buildFilterChip(
+                          'confirmed',
+                          '承認済み',
+                          _bookings.where((b) => b['status'] == 'confirmed').length,
+                        ),
+                        const SizedBox(width: 8),
+                        _buildFilterChip(
+                          'completed',
+                          '完了',
+                          _bookings.where((b) => b['status'] == 'completed').length,
+                        ),
+                        const SizedBox(width: 8),
+                        _buildFilterChip(
+                          'cancelled',
+                          'キャンセル',
+                          _bookings.where((b) => b['status'] == 'cancelled').length,
+                        ),
+                      ],
+                    ),
                   ),
-                  const SizedBox(width: 8),
-                  _buildFilterChip(
-                    'completed',
-                    '完了',
-                    bookings.where((b) => b.status == 'completed').length,
-                  ),
-                  const SizedBox(width: 8),
-                  _buildFilterChip(
-                    'cancelled',
-                    'キャンセル',
-                    bookings.where((b) => b.status == 'cancelled').length,
-                  ),
-                ],
-              ),
-            ),
-          ),
+                ),
 
-          // Bookings list
-          Expanded(
-            child: filteredBookings.isEmpty
-                ? _buildEmptyState()
-                : ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: filteredBookings.length,
-                    itemBuilder: (context, index) {
-                      return _buildBookingCard(filteredBookings[index]);
-                    },
-                  ),
-          ),
-        ],
-      ),
+                // Bookings list
+                Expanded(
+                  child: filteredBookings.isEmpty
+                      ? _buildEmptyState()
+                      : RefreshIndicator(
+                          onRefresh: _loadBookings,
+                          child: ListView.builder(
+                            padding: const EdgeInsets.all(16),
+                            itemCount: filteredBookings.length,
+                            itemBuilder: (context, index) {
+                              return _buildBookingCard(filteredBookings[index]);
+                            },
+                          ),
+                        ),
+                ),
+              ],
+            ),
     );
   }
 
@@ -162,7 +189,17 @@ class _ProviderBookingsScreenState extends State<ProviderBookingsScreen> {
     );
   }
 
-  Widget _buildBookingCard(Booking booking) {
+  Widget _buildBookingCard(Map<String, dynamic> booking) {
+    final serviceName = booking['service_name'] ?? '';
+    final status = booking['status'] ?? 'pending';
+    final price = (booking['price'] ?? 0).toDouble();
+    final bookingDate = DateTime.parse(booking['booking_date'] ?? DateTime.now().toString());
+    final timeSlot = booking['time_slot'] ?? '';
+    final customerName = booking['customer_name'] ?? '';
+    final customerPhone = booking['customer_phone'] ?? '';
+    final notes = booking['notes'];
+    final bookingId = booking['id'] ?? '';
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
@@ -184,7 +221,7 @@ class _ProviderBookingsScreenState extends State<ProviderBookingsScreen> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: _getStatusColor(booking.status).withOpacity(0.1),
+              color: _getStatusColor(status).withOpacity(0.1),
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(12),
                 topRight: Radius.circular(12),
@@ -195,11 +232,11 @@ class _ProviderBookingsScreenState extends State<ProviderBookingsScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: _getStatusColor(booking.status),
+                    color: _getStatusColor(status),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
-                    _getStatusText(booking.status),
+                    _getStatusText(status),
                     style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -209,7 +246,7 @@ class _ProviderBookingsScreenState extends State<ProviderBookingsScreen> {
                 ),
                 const Spacer(),
                 Text(
-                  '¥${booking.price.toStringAsFixed(0)}',
+                  '¥${price.toStringAsFixed(0)}',
                   style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -228,7 +265,7 @@ class _ProviderBookingsScreenState extends State<ProviderBookingsScreen> {
               children: [
                 // Service name
                 Text(
-                  booking.serviceName,
+                  serviceName,
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
@@ -243,7 +280,7 @@ class _ProviderBookingsScreenState extends State<ProviderBookingsScreen> {
                     const Icon(Icons.calendar_today, size: 16, color: AppColors.textSecondary),
                     const SizedBox(width: 8),
                     Text(
-                      _formatDate(booking.bookingDate),
+                      _formatDate(bookingDate),
                       style: const TextStyle(
                         fontSize: 14,
                         color: AppColors.textSecondary,
@@ -258,7 +295,7 @@ class _ProviderBookingsScreenState extends State<ProviderBookingsScreen> {
                     const Icon(Icons.access_time, size: 16, color: AppColors.textSecondary),
                     const SizedBox(width: 8),
                     Text(
-                      booking.timeSlot,
+                      timeSlot,
                       style: const TextStyle(
                         fontSize: 14,
                         color: AppColors.textSecondary,
@@ -277,7 +314,7 @@ class _ProviderBookingsScreenState extends State<ProviderBookingsScreen> {
                     const Icon(Icons.person_outline, size: 16, color: AppColors.textSecondary),
                     const SizedBox(width: 8),
                     Text(
-                      booking.customerName,
+                      customerName,
                       style: const TextStyle(
                         fontSize: 14,
                         color: AppColors.textPrimary,
@@ -293,7 +330,7 @@ class _ProviderBookingsScreenState extends State<ProviderBookingsScreen> {
                     const Icon(Icons.phone_outlined, size: 16, color: AppColors.textSecondary),
                     const SizedBox(width: 8),
                     Text(
-                      booking.customerPhone,
+                      customerPhone,
                       style: const TextStyle(
                         fontSize: 14,
                         color: AppColors.textSecondary,
@@ -302,7 +339,7 @@ class _ProviderBookingsScreenState extends State<ProviderBookingsScreen> {
                   ],
                 ),
 
-                if (booking.notes != null && booking.notes!.isNotEmpty) ...[
+                if (notes != null && notes.toString().isNotEmpty) ...[
                   const SizedBox(height: 12),
                   Container(
                     padding: const EdgeInsets.all(12),
@@ -317,7 +354,7 @@ class _ProviderBookingsScreenState extends State<ProviderBookingsScreen> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            booking.notes!,
+                            notes.toString(),
                             style: TextStyle(
                               fontSize: 13,
                               color: Colors.grey[700],
@@ -330,13 +367,13 @@ class _ProviderBookingsScreenState extends State<ProviderBookingsScreen> {
                 ],
 
                 // Action buttons
-                if (booking.status == 'pending') ...[
+                if (status == 'pending') ...[
                   const SizedBox(height: 16),
                   Row(
                     children: [
                       Expanded(
                         child: OutlinedButton(
-                          onPressed: () => _updateBookingStatus(booking.id, 'cancelled'),
+                          onPressed: () => _updateBookingStatus(bookingId, 'cancelled'),
                           style: OutlinedButton.styleFrom(
                             foregroundColor: Colors.red,
                             side: const BorderSide(color: Colors.red),
@@ -348,7 +385,7 @@ class _ProviderBookingsScreenState extends State<ProviderBookingsScreen> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: () => _updateBookingStatus(booking.id, 'confirmed'),
+                          onPressed: () => _updateBookingStatus(bookingId, 'confirmed'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.primaryOrange,
                             padding: const EdgeInsets.symmetric(vertical: 12),
@@ -363,53 +400,19 @@ class _ProviderBookingsScreenState extends State<ProviderBookingsScreen> {
                   ),
                 ],
 
-                if (booking.status == 'confirmed') ...[
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => _openChat(booking),
-                          icon: const Icon(Icons.chat_bubble_outline, size: 18),
-                          label: const Text('チャット'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.primaryOrange,
-                            side: const BorderSide(color: AppColors.primaryOrange),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () => _updateBookingStatus(booking.id, 'completed'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                          ),
-                          child: const Text(
-                            '完了にする',
-                            style: TextStyle(color: Colors.white),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-
-                // チャットボタン（その他のステータスでも表示）
-                if (booking.status != 'pending' && booking.status != 'confirmed') ...[
+                if (status == 'confirmed') ...[
                   const SizedBox(height: 16),
                   SizedBox(
                     width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: () => _openChat(booking),
-                      icon: const Icon(Icons.chat_bubble_outline, size: 18),
-                      label: const Text('チャット'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.primaryOrange,
-                        side: const BorderSide(color: AppColors.primaryOrange),
+                    child: ElevatedButton(
+                      onPressed: () => _updateBookingStatus(bookingId, 'completed'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
                         padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      child: const Text(
+                        '完了にする',
+                        style: TextStyle(color: Colors.white),
                       ),
                     ),
                   ),
@@ -422,33 +425,49 @@ class _ProviderBookingsScreenState extends State<ProviderBookingsScreen> {
     );
   }
 
-  void _updateBookingStatus(String bookingId, String newStatus) {
+  Future<void> _updateBookingStatus(String bookingId, String newStatus) async {
     if (_providerId == null) return;
 
-    setState(() {
-      providerDb.updateBookingStatus(_providerId!, bookingId, newStatus);
-    });
+    try {
+      final success = await MySQLService.instance.updateBookingStatus(bookingId, newStatus);
 
-    String message = '';
-    switch (newStatus) {
-      case 'confirmed':
-        message = '予約を承認しました';
-        break;
-      case 'completed':
-        message = '予約を完了にしました';
-        break;
-      case 'cancelled':
-        message = '予約をキャンセルしました';
-        break;
+      if (success) {
+        String message = '';
+        switch (newStatus) {
+          case 'confirmed':
+            message = '予約を承認しました';
+            break;
+          case 'completed':
+            message = '予約を完了にしました';
+            break;
+          case 'cancelled':
+            message = '予約をキャンセルしました';
+            break;
+        }
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(message),
+              backgroundColor: newStatus == 'cancelled' ? Colors.red : Colors.green,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+
+        // Reload bookings
+        await _loadBookings();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('ステータスの更新に失敗しました'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: newStatus == 'cancelled' ? Colors.red : Colors.green,
-        duration: const Duration(seconds: 2),
-      ),
-    );
   }
 
   Color _getStatusColor(String status) {
@@ -481,44 +500,5 @@ class _ProviderBookingsScreenState extends State<ProviderBookingsScreen> {
 
   String _formatDate(DateTime date) {
     return '${date.year}年${date.month}月${date.day}日';
-  }
-
-  Future<void> _openChat(Booking booking) async {
-    if (_providerId == null) return;
-
-    final chatService = ChatService();
-
-    // 既存のチャットルームを検索
-    final chatRooms = await chatService.getChatRoomsByProvider(_providerId!);
-    ChatRoom? existingRoom;
-
-    for (var room in chatRooms) {
-      if (room.bookingId == booking.id) {
-        existingRoom = room;
-        break;
-      }
-    }
-
-    // チャットルームが存在しない場合は作成
-    if (existingRoom == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('この予約にはまだチャットが開設されていません')),
-        );
-      }
-      return;
-    }
-
-    // チャットルーム画面に遷移
-    if (mounted) {
-      await Navigator.pushNamed(
-        context,
-        '/chat-room',
-        arguments: existingRoom.id,
-      );
-
-      // 戻ったら画面を更新
-      setState(() {});
-    }
   }
 }

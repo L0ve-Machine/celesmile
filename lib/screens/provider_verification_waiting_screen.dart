@@ -95,7 +95,7 @@ class _ProviderVerificationWaitingScreenState
   Future<void> _registerSessionWithBackend() async {
     try {
       final response = await http.post(
-        Uri.parse('https://celesmile-demo.duckdns.org/register-session/${widget.sessionId}'),
+        Uri.parse('http://localhost:8080/register-session/${widget.sessionId}'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({'providerId': widget.providerId}),
       ).timeout(Duration(seconds: 5));
@@ -120,7 +120,7 @@ class _ProviderVerificationWaitingScreenState
 
       try {
         final response = await http.get(
-          Uri.parse('https://celesmile-demo.duckdns.org/verification-status/${widget.sessionId}'),
+          Uri.parse('http://localhost:8080/verification-status/${widget.sessionId}'),
         ).timeout(Duration(seconds: 5));
 
         if (response.statusCode == 200) {
@@ -128,8 +128,16 @@ class _ProviderVerificationWaitingScreenState
           final status = data['status'] ?? '';
 
           print('🔄 [POLLING] Status from backend: $status');
+          print('🔄 [POLLING] Full data from backend: ${json.encode(data)}');
 
-          if (status.isNotEmpty && status != 'not_started' && status != 'in_progress') {
+          // Check if status is final (not initial or in progress states)
+          final normalizedStatus = status.toLowerCase();
+          if (status.isNotEmpty &&
+              normalizedStatus != 'not_started' &&
+              normalizedStatus != 'in_progress' &&
+              normalizedStatus != 'not started' &&
+              normalizedStatus != 'in progress') {
+            print('✅ [POLLING] Final status detected, handling result: $status');
             timer.cancel();
             _handleVerificationResult(status);
           }
@@ -141,7 +149,12 @@ class _ProviderVerificationWaitingScreenState
   }
 
   void _handleVerificationResult(String status) {
-    if (status.toLowerCase() == 'approved') {
+    final normalizedStatus = status.toLowerCase().replaceAll('_', ' ').trim();
+
+    print('🔍 [HANDLER] Original status: $status');
+    print('🔍 [HANDLER] Normalized status: $normalizedStatus');
+
+    if (normalizedStatus == 'approved') {
       _statusCheckTimer.cancel();
       setState(() {
         _isApproved = true;
@@ -156,14 +169,14 @@ class _ProviderVerificationWaitingScreenState
           _navigateToProviderHome();
         }
       });
-    } else if (status.toLowerCase() == 'declined') {
+    } else if (normalizedStatus == 'declined') {
       _statusCheckTimer.cancel();
       setState(() {
         _isRejected = true;
         _statusMessage = '申し訳ございません。本人確認が却下されました。';
         _rejectionReason = 'DID-IT で却下されました';
       });
-    } else if (status.toLowerCase() == 'in review') {
+    } else if (normalizedStatus == 'in review') {
       setState(() {
         _statusMessage = '本人確認をレビュー中です...';
       });

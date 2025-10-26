@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../constants/colors.dart';
-import '../services/chat_service.dart';
-import '../services/profile_image_service.dart';
+import '../services/mysql_service.dart';
 
 /// プロバイダー用チャット一覧画面
 class ProviderChatListScreen extends StatefulWidget {
@@ -12,13 +11,17 @@ class ProviderChatListScreen extends StatefulWidget {
 }
 
 class _ProviderChatListScreenState extends State<ProviderChatListScreen> {
-  final ChatService _chatService = ChatService();
-  List<ChatRoom> _chatRooms = [];
+  List<Map<String, dynamic>> _chatRooms = [];
   bool _isLoading = true;
+  String? _providerId;
 
   @override
-  void initState() {
-    super.initState();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _providerId = ModalRoute.of(context)?.settings.arguments as String?;
+    if (_providerId == null) {
+      _providerId = 'provider_test'; // デフォルトのテストプロバイダー
+    }
     _loadChatRooms();
   }
 
@@ -28,10 +31,50 @@ class _ProviderChatListScreenState extends State<ProviderChatListScreen> {
     });
 
     try {
-      // プロバイダーIDでチャットルームを取得
-      // TODO: 実際のプロバイダーIDを使用する
-      const providerId = 'test_provider_001';
-      final rooms = await _chatService.getChatRoomsByProvider(providerId);
+      final chats = await MySQLService.instance.getChats(_providerId!);
+
+      // Group chats by user_id to create "rooms"
+      final Map<String, Map<String, dynamic>> roomsMap = {};
+
+      for (var chat in chats) {
+        final userId = chat['user_id'] ?? '';
+        final message = chat['message'] ?? '';
+        final senderType = chat['sender_type'] ?? '';
+        final createdAt = DateTime.parse(chat['created_at'] ?? DateTime.now().toString());
+
+        if (!roomsMap.containsKey(userId)) {
+          roomsMap[userId] = {
+            'user_id': userId,
+            'last_message': message,
+            'last_message_time': createdAt,
+            'unread_count': 0,
+            'messages': <Map<String, dynamic>>[],
+          };
+        }
+
+        // Update last message if this one is newer
+        final currentLastTime = roomsMap[userId]!['last_message_time'] as DateTime;
+        if (createdAt.isAfter(currentLastTime)) {
+          roomsMap[userId]!['last_message'] = message;
+          roomsMap[userId]!['last_message_time'] = createdAt;
+        }
+
+        // Count unread messages (messages from user that haven't been read)
+        if (senderType == 'user') {
+          roomsMap[userId]!['unread_count'] = (roomsMap[userId]!['unread_count'] as int) + 1;
+        }
+
+        // Add to messages list
+        (roomsMap[userId]!['messages'] as List<Map<String, dynamic>>).add(chat);
+      }
+
+      // Convert to list and sort by last message time
+      final rooms = roomsMap.values.toList();
+      rooms.sort((a, b) {
+        final aTime = a['last_message_time'] as DateTime;
+        final bTime = b['last_message_time'] as DateTime;
+        return bTime.compareTo(aTime);
+      });
 
       setState(() {
         _chatRooms = rooms;
@@ -180,22 +223,19 @@ class _ProviderChatListScreenState extends State<ProviderChatListScreen> {
     );
   }
 
-  Widget _buildChatRoomTile(ChatRoom chatRoom) {
-    final lastMessageText = chatRoom.lastMessage?.message ?? 'メッセージがありません';
-    final lastMessageTime =
-        chatRoom.lastMessage?.timestamp ?? chatRoom.createdAt;
-    final hasUnread = chatRoom.unreadCount > 0;
+  Widget _buildChatRoomTile(Map<String, dynamic> chatRoom) {
+    final userId = chatRoom['user_id'] ?? '';
+    final lastMessageText = chatRoom['last_message'] ?? 'メッセージがありません';
+    final lastMessageTime = chatRoom['last_message_time'] as DateTime? ?? DateTime.now();
+    final unreadCount = chatRoom['unread_count'] ?? 0;
+    final hasUnread = unreadCount > 0;
 
     return InkWell(
-      onTap: () async {
-        // チャットルーム画面に遷移
-        await Navigator.pushNamed(
-          context,
-          '/chat-room',
-          arguments: chatRoom.id,
+      onTap: () {
+        // For now, just show a message since we don't have a full chat room implementation
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$userId とのチャットを開く')),
         );
-        // チャット画面から戻ったら再読み込み
-        _loadChatRooms();
       },
       child: Container(
         color: Colors.white,
@@ -206,10 +246,14 @@ class _ProviderChatListScreenState extends State<ProviderChatListScreen> {
             // ユーザーアイコン
             Stack(
               children: [
-                ProfileImageService().buildProfileAvatar(
-                  userId: chatRoom.userId,
-                  isProvider: false,
+                CircleAvatar(
                   radius: 28,
+                  backgroundColor: AppColors.primaryOrange.withOpacity(0.2),
+                  child: Icon(
+                    Icons.person,
+                    color: AppColors.primaryOrange,
+                    size: 28,
+                  ),
                 ),
                 if (hasUnread)
                   Positioned(
@@ -222,9 +266,7 @@ class _ProviderChatListScreenState extends State<ProviderChatListScreen> {
                         shape: BoxShape.circle,
                       ),
                       child: Text(
-                        chatRoom.unreadCount > 9
-                            ? '9+'
-                            : chatRoom.unreadCount.toString(),
+                        unreadCount > 9 ? '9+' : unreadCount.toString(),
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 10,
@@ -248,11 +290,10 @@ class _ProviderChatListScreenState extends State<ProviderChatListScreen> {
                     children: [
                       Expanded(
                         child: Text(
-                          chatRoom.userId, // お客様のユーザー名を表示
+                          userId,
                           style: TextStyle(
                             fontSize: 16,
-                            fontWeight:
-                                hasUnread ? FontWeight.bold : FontWeight.w600,
+                            fontWeight: hasUnread ? FontWeight.bold : FontWeight.w600,
                             color: AppColors.textPrimary,
                           ),
                           maxLines: 1,
@@ -267,23 +308,10 @@ class _ProviderChatListScreenState extends State<ProviderChatListScreen> {
                           color: hasUnread
                               ? AppColors.primaryOrange
                               : Colors.grey[600],
-                          fontWeight:
-                              hasUnread ? FontWeight.w600 : FontWeight.normal,
+                          fontWeight: hasUnread ? FontWeight.w600 : FontWeight.normal,
                         ),
                       ),
                     ],
-                  ),
-                  const SizedBox(height: 4),
-
-                  // サービス名
-                  Text(
-                    chatRoom.serviceName,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey[600],
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 6),
 
@@ -295,8 +323,7 @@ class _ProviderChatListScreenState extends State<ProviderChatListScreen> {
                       color: hasUnread
                           ? AppColors.textPrimary
                           : Colors.grey[700],
-                      fontWeight:
-                          hasUnread ? FontWeight.w500 : FontWeight.normal,
+                      fontWeight: hasUnread ? FontWeight.w500 : FontWeight.normal,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,

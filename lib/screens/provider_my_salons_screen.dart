@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../constants/colors.dart';
-import '../services/provider_database_service.dart';
+import '../services/mysql_service.dart';
 
 class ProviderMySalonsScreen extends StatefulWidget {
   const ProviderMySalonsScreen({super.key});
@@ -11,19 +11,18 @@ class ProviderMySalonsScreen extends StatefulWidget {
 
 class _ProviderMySalonsScreenState extends State<ProviderMySalonsScreen> {
   String? _providerId;
-  final providerDb = ProviderDatabaseService();
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     _providerId = ModalRoute.of(context)?.settings.arguments as String?;
+    if (_providerId == null) {
+      _providerId = 'provider_test'; // デフォルトのテストプロバイダー
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final salons = _providerId != null
-        ? providerDb.getSalonsByProvider(_providerId!)
-        : [];
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -53,15 +52,30 @@ class _ProviderMySalonsScreenState extends State<ProviderMySalonsScreen> {
           ),
         ],
       ),
-      body: salons.isEmpty
-          ? _buildEmptyState()
-          : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: salons.length,
-              itemBuilder: (context, index) {
-                return _buildSalonCard(salons[index]);
-              },
-            ),
+      body: FutureBuilder<List<Map<String, dynamic>>>(
+        future: MySQLService.instance.getSalonsByProvider(_providerId!),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (snapshot.hasError) {
+            return Center(child: Text('エラー: ${snapshot.error}'));
+          }
+
+          final salons = snapshot.data ?? [];
+
+          return salons.isEmpty
+              ? _buildEmptyState()
+              : ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: salons.length,
+                  itemBuilder: (context, index) {
+                    return _buildSalonCard(salons[index]);
+                  },
+                );
+        },
+      ),
     );
   }
 
@@ -101,14 +115,14 @@ class _ProviderMySalonsScreenState extends State<ProviderMySalonsScreen> {
     );
   }
 
-  Widget _buildSalonCard(SalonInfo salon) {
-    final menus = providerDb.getMenusBySalon(salon.id);
-
-    // Format business hours
-    String formattedHours = '平日: ';
-    if (salon.businessHours.containsKey('weekday')) {
-      formattedHours += salon.businessHours['weekday']!;
-    }
+  Widget _buildSalonCard(Map<String, dynamic> salon) {
+    final salonName = salon['salon_name'] ?? '';
+    final category = salon['category'] ?? '';
+    final address = salon['address'] ?? '';
+    final city = salon['city'] ?? '';
+    final prefecture = salon['prefecture'] ?? '';
+    final description = salon['description'] ?? '';
+    final salonId = salon['id'] ?? '';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
@@ -157,7 +171,7 @@ class _ProviderMySalonsScreenState extends State<ProviderMySalonsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        salon.salonName,
+                        salonName,
                         style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -172,7 +186,7 @@ class _ProviderMySalonsScreenState extends State<ProviderMySalonsScreen> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
-                          salon.category,
+                          category,
                           style: const TextStyle(
                             fontSize: 12,
                             color: AppColors.textSecondary,
@@ -217,26 +231,7 @@ class _ProviderMySalonsScreenState extends State<ProviderMySalonsScreen> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        '${salon.address}\n${salon.city}, ${salon.prefecture}',
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-
-                // Business hours
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(Icons.access_time, size: 18, color: AppColors.textSecondary),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        '営業時間: $formattedHours',
+                        '$address\n$city, $prefecture',
                         style: const TextStyle(
                           fontSize: 14,
                           color: AppColors.textSecondary,
@@ -248,7 +243,7 @@ class _ProviderMySalonsScreenState extends State<ProviderMySalonsScreen> {
                 const SizedBox(height: 12),
 
                 // Description
-                if (salon.description.isNotEmpty) ...[
+                if (description.isNotEmpty) ...[
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
@@ -256,7 +251,7 @@ class _ProviderMySalonsScreenState extends State<ProviderMySalonsScreen> {
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
-                      salon.description,
+                      description,
                       style: TextStyle(
                         fontSize: 13,
                         color: Colors.grey[700],
@@ -268,60 +263,6 @@ class _ProviderMySalonsScreenState extends State<ProviderMySalonsScreen> {
                 ],
 
                 const Divider(),
-                const SizedBox(height: 12),
-
-                // Menus section
-                Row(
-                  children: [
-                    const Text(
-                      'メニュー',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: AppColors.accentBlue.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        '${menus.length}件',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.accentBlue,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-
-                if (menus.isEmpty)
-                  Text(
-                    'メニューが登録されていません',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey[600],
-                    ),
-                  )
-                else
-                  ...menus.take(3).map((menu) => _buildMenuRow(menu)),
-
-                if (menus.length > 3) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    '他${menus.length - 3}件のメニュー',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                ],
 
                 const SizedBox(height: 16),
 
@@ -334,7 +275,7 @@ class _ProviderMySalonsScreenState extends State<ProviderMySalonsScreen> {
                           Navigator.pushNamed(
                             context,
                             '/menu-registration',
-                            arguments: {'providerId': _providerId, 'salonId': salon.id},
+                            arguments: {'providerId': _providerId, 'salonId': salonId},
                           );
                         },
                         icon: const Icon(Icons.menu_book, size: 18),
@@ -353,7 +294,7 @@ class _ProviderMySalonsScreenState extends State<ProviderMySalonsScreen> {
                           Navigator.pushNamed(
                             context,
                             '/salon-registration',
-                            arguments: {'providerId': _providerId, 'salonId': salon.id},
+                            arguments: {'providerId': _providerId, 'salonId': salonId},
                           );
                         },
                         icon: const Icon(Icons.edit, size: 18),
@@ -375,47 +316,4 @@ class _ProviderMySalonsScreenState extends State<ProviderMySalonsScreen> {
     );
   }
 
-  Widget _buildMenuRow(ProviderServiceMenu menu) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        children: [
-          Container(
-            width: 4,
-            height: 4,
-            decoration: BoxDecoration(
-              color: AppColors.primaryOrange,
-              shape: BoxShape.circle,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              menu.menuName,
-              style: const TextStyle(
-                fontSize: 13,
-                color: AppColors.textPrimary,
-              ),
-            ),
-          ),
-          Text(
-            '¥${menu.price.toStringAsFixed(0)}',
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          const SizedBox(width: 4),
-          Text(
-            '(${menu.duration}分)',
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey[600],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }

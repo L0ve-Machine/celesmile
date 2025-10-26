@@ -25,6 +25,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.lightBeige,
+      resizeToAvoidBottomInset: false, // キーボード表示時の自動リサイズを無効化
       body: Stack(
         fit: StackFit.expand,
         children: [
@@ -40,14 +41,14 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               alignment: Alignment.bottomLeft,
             ),
           ),
-          // Main content
-          SafeArea(
-            child: SingleChildScrollView(
+          // Main content - completely fixed, no scrolling
+          Positioned.fill(
+            child: SafeArea(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24.0),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
                 const SizedBox(height: 10),
 
                 // Logo
@@ -117,8 +118,8 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                 ],
               ),
             ),
+            ),
           ),
-        ),
         // Top right orange decoration
         Positioned(
           top: 0,
@@ -131,41 +132,44 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
             ),
           ),
         ),
-        // Bottom right registration section
-        Positioned(
-          bottom: 32,
-          right: 32,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              TextButton(
-                onPressed: () {
-                  Navigator.pushNamed(context, '/onboarding');
-                },
-                style: TextButton.styleFrom(
-                  padding: EdgeInsets.zero,
-                  minimumSize: Size(0, 0),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-                child: const Text(
-                  '新規登録',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.textSecondary,
-                    decoration: TextDecoration.none,
+        // Bottom right registration section - fixed position
+        Align(
+          alignment: Alignment.bottomRight,
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 32, right: 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pushNamed(context, '/onboarding');
+                  },
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: Size(0, 0),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: const Text(
+                    '新規登録',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.textSecondary,
+                      decoration: TextDecoration.none,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 4),
-              const Text(
-                "Don't Have an Account?",
-                style: TextStyle(
-                  fontSize: 11,
-                  color: AppColors.textSecondary,
+                const SizedBox(height: 4),
+                const Text(
+                  "パスワードがわかりませんか？",
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
         ],
@@ -338,33 +342,4 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
     );
   }
 
-  Widget _buildNewRegistrationSection() {
-    return Column(
-      children: [
-        TextButton(
-          onPressed: () {
-            // Navigate to onboarding for new registration
-            Navigator.pushNamed(context, '/onboarding');
-          },
-          child: const Text(
-            '新規登録',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-              color: AppColors.orange,
-              decoration: TextDecoration.underline,
-            ),
-          ),
-        ),
-        const SizedBox(height: 4),
-        const Text(
-          "Don't Have an Account?",
-          style: TextStyle(
-            fontSize: 12,
-            color: AppColors.textSecondary,
-          ),
-        ),
-      ],
-    );
-  }
 }

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../constants/colors.dart';
-import '../services/provider_database_service.dart';
+import '../services/mysql_service.dart';
 
 class ProviderAvailabilityCalendarScreen extends StatefulWidget {
   const ProviderAvailabilityCalendarScreen({super.key});
@@ -14,6 +14,7 @@ class _ProviderAvailabilityCalendarScreenState extends State<ProviderAvailabilit
   DateTime _selectedMonth = DateTime.now();
   Map<String, List<TimeSlot>> _availability = {};
   DateTime? _selectedDate;
+  bool _isLoading = true;
 
   final List<TimeSlot> _timeSlots = [
     TimeSlot(startTime: '06:00', endTime: '07:00'),
@@ -38,6 +39,46 @@ class _ProviderAvailabilityCalendarScreenState extends State<ProviderAvailabilit
   void didChangeDependencies() {
     super.didChangeDependencies();
     _providerId = ModalRoute.of(context)?.settings.arguments as String?;
+    if (_providerId == null) {
+      _providerId = 'provider_test'; // デフォルトのテストプロバイダー
+    }
+    _loadAvailability();
+  }
+
+  Future<void> _loadAvailability() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final availabilityData = await MySQLService.instance.getAvailability(_providerId!);
+
+      // Convert API data to local state format
+      final Map<String, List<TimeSlot>> availabilityMap = {};
+      for (var record in availabilityData) {
+        if (record['is_available'] == 1 || record['is_available'] == true) {
+          final date = record['date'].toString().split(' ')[0]; // Get date part only
+          final timeSlot = record['time_slot'] ?? '';
+          final parts = timeSlot.split('-');
+          if (parts.length == 2) {
+            final slot = TimeSlot(startTime: parts[0], endTime: parts[1]);
+            if (!availabilityMap.containsKey(date)) {
+              availabilityMap[date] = [];
+            }
+            availabilityMap[date]!.add(slot);
+          }
+        }
+      }
+
+      setState(() {
+        _availability = availabilityMap;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   void _toggleTimeSlot(DateTime date, TimeSlot slot) {
@@ -87,8 +128,78 @@ class _ProviderAvailabilityCalendarScreenState extends State<ProviderAvailabilit
     });
   }
 
+  Future<void> _saveAvailability() async {
+    if (_providerId == null) return;
+
+    try {
+      // Convert local state to API format and save each slot
+      for (var dateEntry in _availability.entries) {
+        final date = dateEntry.key;
+        final slots = dateEntry.value;
+
+        // First, mark all slots for this date as unavailable, then set available ones
+        for (var slot in _timeSlots) {
+          final timeSlot = '${slot.startTime}-${slot.endTime}';
+          final isAvailable = slots.any((s) => s.startTime == slot.startTime && s.endTime == slot.endTime);
+
+          final availabilityData = {
+            'id': 'avail_${_providerId}_${date}_${slot.startTime.replaceAll(':', '')}',
+            'provider_id': _providerId,
+            'date': date,
+            'time_slot': timeSlot,
+            'is_available': isAvailable,
+          };
+
+          await MySQLService.instance.updateAvailability(availabilityData);
+        }
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('空き状況を保存しました'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('保存に失敗しました'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: Colors.white,
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: const Text(
+            '空き状況カレンダー',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          centerTitle: true,
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -109,14 +220,7 @@ class _ProviderAvailabilityCalendarScreenState extends State<ProviderAvailabilit
         centerTitle: true,
         actions: [
           TextButton(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('空き状況を保存しました'),
-                  backgroundColor: Colors.green,
-                ),
-              );
-            },
+            onPressed: _saveAvailability,
             child: const Text(
               '保存',
               style: TextStyle(
