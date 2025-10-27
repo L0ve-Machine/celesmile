@@ -159,6 +159,15 @@ class MySQLService {
     return response.statusCode == 200;
   }
 
+  // Get provider by ID
+  Future<Map<String, dynamic>?> getProviderById(String providerId) async {
+    final response = await http.get(Uri.parse('$baseUrl/providers/$providerId'));
+    if (response.statusCode == 200) {
+      return Map<String, dynamic>.from(json.decode(response.body));
+    }
+    return null;
+  }
+
   // Login
   Future<Map<String, dynamic>?> login(String email, String password) async {
     final response = await http.post(
@@ -173,5 +182,33 @@ class MySQLService {
       }
     }
     return null;
+  }
+
+  // Update provider profile
+  Future<bool> updateProviderProfile(String providerId, Map<String, dynamic> profileData) async {
+    final response = await http.patch(
+      Uri.parse('$baseUrl/providers/$providerId'),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode(profileData),
+    );
+    return response.statusCode == 200;
+  }
+
+  // Change provider password
+  Future<Map<String, dynamic>> changeProviderPassword(String providerId, String currentPassword, String newPassword) async {
+    final response = await http.patch(
+      Uri.parse('$baseUrl/providers/$providerId/password'),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({
+        'current_password': currentPassword,
+        'new_password': newPassword,
+      }),
+    );
+    if (response.statusCode == 200) {
+      return {'success': true};
+    } else {
+      final data = json.decode(response.body);
+      return {'success': false, 'error': data['error'] ?? 'Password change failed'};
+    }
   }
 }

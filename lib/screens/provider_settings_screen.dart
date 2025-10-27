@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/colors.dart';
 import '../services/provider_database_service.dart';
 import '../services/auth_service.dart';
@@ -14,6 +15,9 @@ class ProviderSettingsScreen extends StatefulWidget {
 class _ProviderSettingsScreenState extends State<ProviderSettingsScreen> {
   String? _providerId;
   final providerDb = ProviderDatabaseService();
+  bool _pushNotificationEnabled = true;
+  bool _emailNotificationEnabled = true;
+  bool _isLoadingNotifications = true;
 
   @override
   void didChangeDependencies() {
@@ -23,6 +27,52 @@ class _ProviderSettingsScreenState extends State<ProviderSettingsScreen> {
       _providerId = args;
     } else {
       _providerId = AuthService.currentUserProviderId;
+    }
+    _loadNotificationSettings();
+  }
+
+  Future<void> _loadNotificationSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _pushNotificationEnabled = prefs.getBool('provider_push_notification_${_providerId ?? 'default'}') ?? true;
+      _emailNotificationEnabled = prefs.getBool('provider_email_notification_${_providerId ?? 'default'}') ?? true;
+      _isLoadingNotifications = false;
+    });
+  }
+
+  Future<void> _savePushNotificationSetting(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('provider_push_notification_${_providerId ?? 'default'}', value);
+    setState(() {
+      _pushNotificationEnabled = value;
+    });
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(value ? 'プッシュ通知を有効にしました' : 'プッシュ通知を無効にしました'),
+          backgroundColor: AppColors.primaryOrange,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  Future<void> _saveEmailNotificationSetting(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('provider_email_notification_${_providerId ?? 'default'}', value);
+    setState(() {
+      _emailNotificationEnabled = value;
+    });
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(value ? 'メール通知を有効にしました' : 'メール通知を無効にしました'),
+          backgroundColor: AppColors.primaryOrange,
+          duration: const Duration(seconds: 2),
+        ),
+      );
     }
   }
 
@@ -134,53 +184,12 @@ class _ProviderSettingsScreenState extends State<ProviderSettingsScreen> {
               },
             ),
             _buildSettingItem(
-              icon: Icons.email_outlined,
-              title: 'メールアドレス',
-              subtitle: provider?.email ?? '未設定',
-              onTap: () {
-                Navigator.pushNamed(
-                  context,
-                  '/provider-profile-edit',
-                  arguments: _providerId,
-                );
-              },
-            ),
-            _buildSettingItem(
-              icon: Icons.phone_outlined,
-              title: '電話番号',
-              subtitle: provider?.phone ?? '未設定',
-              onTap: () {
-                Navigator.pushNamed(
-                  context,
-                  '/provider-profile-edit',
-                  arguments: _providerId,
-                );
-              },
-            ),
-            _buildSettingItem(
               icon: Icons.lock_outline,
               title: 'パスワード変更',
               onTap: () {
                 Navigator.pushNamed(
                   context,
-                  '/provider-profile-edit',
-                  arguments: _providerId,
-                );
-              },
-            ),
-
-            const SizedBox(height: 8),
-
-            // Business settings section
-            _buildSectionHeader('ビジネス設定'),
-            _buildSettingItem(
-              icon: Icons.store_outlined,
-              title: 'マイサロン管理',
-              subtitle: 'サロン情報の編集・追加',
-              onTap: () {
-                Navigator.pushNamed(
-                  context,
-                  '/provider-my-salons',
+                  '/provider-password-change',
                   arguments: _providerId,
                 );
               },
@@ -197,30 +206,6 @@ class _ProviderSettingsScreenState extends State<ProviderSettingsScreen> {
                 );
               },
             ),
-            _buildSettingItem(
-              icon: Icons.verified_user_outlined,
-              title: '本人確認書類',
-              subtitle: '審査ステータスの確認',
-              onTap: () {
-                Navigator.pushNamed(
-                  context,
-                  '/provider-verification-status',
-                  arguments: _providerId,
-                );
-              },
-            ),
-            _buildSettingItem(
-              icon: Icons.calendar_month_outlined,
-              title: '空き状況カレンダー',
-              subtitle: '予約可能な時間を設定',
-              onTap: () {
-                Navigator.pushNamed(
-                  context,
-                  '/provider-availability-calendar',
-                  arguments: _providerId,
-                );
-              },
-            ),
 
             const SizedBox(height: 8),
 
@@ -230,25 +215,33 @@ class _ProviderSettingsScreenState extends State<ProviderSettingsScreen> {
               icon: Icons.notifications_outlined,
               title: 'プッシュ通知',
               subtitle: '新規予約、メッセージなど',
-              trailing: Switch(
-                value: true,
-                onChanged: (value) {
-                  _showComingSoonDialog('通知設定');
-                },
-                activeColor: AppColors.primaryOrange,
-              ),
+              trailing: _isLoadingNotifications
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Switch(
+                      value: _pushNotificationEnabled,
+                      onChanged: _savePushNotificationSetting,
+                      activeColor: AppColors.primaryOrange,
+                    ),
             ),
             _buildSettingItem(
               icon: Icons.mail_outline,
               title: 'メール通知',
               subtitle: '予約確認、売上レポートなど',
-              trailing: Switch(
-                value: true,
-                onChanged: (value) {
-                  _showComingSoonDialog('メール通知設定');
-                },
-                activeColor: AppColors.primaryOrange,
-              ),
+              trailing: _isLoadingNotifications
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Switch(
+                      value: _emailNotificationEnabled,
+                      onChanged: _saveEmailNotificationSetting,
+                      activeColor: AppColors.primaryOrange,
+                    ),
             ),
 
             const SizedBox(height: 8),

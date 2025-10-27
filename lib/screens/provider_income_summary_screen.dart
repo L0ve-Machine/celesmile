@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../constants/colors.dart';
 import '../services/provider_database_service.dart';
+import '../services/mysql_service.dart';
 
 class ProviderIncomeSummaryScreen extends StatefulWidget {
   const ProviderIncomeSummaryScreen({super.key});
@@ -12,25 +13,78 @@ class ProviderIncomeSummaryScreen extends StatefulWidget {
 class _ProviderIncomeSummaryScreenState extends State<ProviderIncomeSummaryScreen> {
   String? _providerId;
   final providerDb = ProviderDatabaseService();
+  bool _isLoading = true;
+  Map<String, dynamic> _summary = {'thisMonthTotal': 0, 'pendingTotal': 0, 'paidTotal': 0, 'totalRevenue': 0};
+  List<Map<String, dynamic>> _bookings = [];
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     _providerId = ModalRoute.of(context)?.settings.arguments as String?;
+    if (_providerId == null) {
+      _providerId = 'test_provider_001'; // Default test provider
+    }
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    if (_providerId == null) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final summary = await MySQLService.instance.getRevenueSummary(_providerId!);
+      final bookings = await MySQLService.instance.getBookingsByProvider(_providerId!);
+
+      setState(() {
+        _summary = summary;
+        _bookings = bookings;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final summary = _providerId != null
-        ? providerDb.getRevenueSummary(_providerId!)
-        : {'thisMonthTotal': 0, 'pendingTotal': 0, 'paidTotal': 0, 'totalRevenue': 0};
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: Colors.white,
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
+            onPressed: () => Navigator.pop(context),
+          ),
+          title: const Text(
+            '収益サマリー',
+            style: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          centerTitle: true,
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
 
-    final revenues = _providerId != null
-        ? providerDb.getRevenuesByProvider(_providerId!)
-        : [];
+    // Filter completed bookings for revenue history
+    final completedBookings = _bookings.where((b) => b['status'] == 'completed').toList();
 
     // Sort by date (newest first)
-    revenues.sort((a, b) => b.date.compareTo(a.date));
+    completedBookings.sort((a, b) {
+      final dateA = DateTime.tryParse(a['booking_date']?.toString() ?? '') ?? DateTime.now();
+      final dateB = DateTime.tryParse(b['booking_date']?.toString() ?? '') ?? DateTime.now();
+      return dateB.compareTo(dateA);
+    });
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -79,7 +133,7 @@ class _ProviderIncomeSummaryScreenState extends State<ProviderIncomeSummaryScree
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    '¥${summary['totalRevenue'].toStringAsFixed(0)}',
+                    '¥${(_summary['totalRevenue'] ?? 0).toString()}',
                     style: const TextStyle(
                       fontSize: 36,
                       fontWeight: FontWeight.bold,
@@ -100,7 +154,7 @@ class _ProviderIncomeSummaryScreenState extends State<ProviderIncomeSummaryScree
                       Expanded(
                         child: _buildSummaryCard(
                           title: '今月の売上',
-                          amount: summary['thisMonthTotal'],
+                          amount: _summary['thisMonthTotal'] ?? 0,
                           icon: Icons.calendar_today,
                           color: AppColors.accentBlue,
                         ),
@@ -109,7 +163,7 @@ class _ProviderIncomeSummaryScreenState extends State<ProviderIncomeSummaryScree
                       Expanded(
                         child: _buildSummaryCard(
                           title: '未入金額',
-                          amount: summary['pendingTotal'],
+                          amount: _summary['pendingTotal'] ?? 0,
                           icon: Icons.pending,
                           color: Colors.black87,
                         ),
@@ -119,7 +173,7 @@ class _ProviderIncomeSummaryScreenState extends State<ProviderIncomeSummaryScree
                   const SizedBox(height: 12),
                   _buildSummaryCard(
                     title: '入金済み',
-                    amount: summary['paidTotal'],
+                    amount: _summary['paidTotal'] ?? 0,
                     icon: Icons.check_circle,
                     color: Colors.green,
                   ),
@@ -137,10 +191,10 @@ class _ProviderIncomeSummaryScreenState extends State<ProviderIncomeSummaryScree
                   ),
                   const SizedBox(height: 16),
 
-                  if (revenues.isEmpty)
+                  if (completedBookings.isEmpty)
                     _buildEmptyState()
                   else
-                    ...revenues.map((revenue) => _buildRevenueCard(revenue)).toList(),
+                    ...completedBookings.map((booking) => _buildRevenueCard(booking)).toList(),
                 ],
               ),
             ),
@@ -152,7 +206,7 @@ class _ProviderIncomeSummaryScreenState extends State<ProviderIncomeSummaryScree
 
   Widget _buildSummaryCard({
     required String title,
-    required int amount,
+    required dynamic amount,
     required IconData icon,
     required Color color,
   }) {
@@ -189,7 +243,7 @@ class _ProviderIncomeSummaryScreenState extends State<ProviderIncomeSummaryScree
           ),
           const SizedBox(height: 4),
           Text(
-            '¥${amount.toStringAsFixed(0)}',
+            '¥${amount.toString()}',
             style: TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.bold,
@@ -227,27 +281,12 @@ class _ProviderIncomeSummaryScreenState extends State<ProviderIncomeSummaryScree
     );
   }
 
-  Widget _buildRevenueCard(RevenueRecord revenue) {
-    final booking = _providerId != null
-        ? providerDb.getBookingsByProvider(_providerId!).firstWhere(
-            (b) => b.id == revenue.bookingId,
-            orElse: () => Booking(
-              id: '',
-              providerId: '',
-              salonId: '',
-              serviceId: '',
-              customerName: '不明',
-              customerPhone: '',
-              customerEmail: '',
-              serviceName: '不明なサービス',
-              bookingDate: revenue.date,
-              timeSlot: '',
-              price: revenue.amount,
-              status: 'completed',
-              createdAt: revenue.date,
-            ),
-          )
-        : null;
+  Widget _buildRevenueCard(Map<String, dynamic> booking) {
+    final serviceName = booking['service_name']?.toString() ?? '不明なサービス';
+    final customerName = booking['customer_name']?.toString() ?? '不明';
+    final amount = booking['price'] ?? 0;
+    final bookingDate = DateTime.tryParse(booking['booking_date']?.toString() ?? '') ?? DateTime.now();
+    final status = booking['status']?.toString() ?? 'pending';
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -274,7 +313,7 @@ class _ProviderIncomeSummaryScreenState extends State<ProviderIncomeSummaryScree
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      booking?.serviceName ?? '不明なサービス',
+                      serviceName,
                       style: const TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
@@ -283,7 +322,7 @@ class _ProviderIncomeSummaryScreenState extends State<ProviderIncomeSummaryScree
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      booking?.customerName ?? '不明',
+                      customerName,
                       style: TextStyle(
                         fontSize: 13,
                         color: Colors.grey[600],
@@ -293,7 +332,7 @@ class _ProviderIncomeSummaryScreenState extends State<ProviderIncomeSummaryScree
                 ),
               ),
               Text(
-                '¥${revenue.amount.toStringAsFixed(0)}',
+                '¥${amount.toString()}',
                 style: const TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
@@ -314,7 +353,7 @@ class _ProviderIncomeSummaryScreenState extends State<ProviderIncomeSummaryScree
               ),
               const SizedBox(width: 6),
               Text(
-                _formatDate(revenue.date),
+                _formatDate(bookingDate),
                 style: TextStyle(
                   fontSize: 13,
                   color: Colors.grey[600],
@@ -322,13 +361,13 @@ class _ProviderIncomeSummaryScreenState extends State<ProviderIncomeSummaryScree
               ),
               const SizedBox(width: 16),
               Icon(
-                Icons.payment,
+                Icons.access_time,
                 size: 14,
                 color: Colors.grey[600],
               ),
               const SizedBox(width: 6),
               Text(
-                revenue.paymentMethod,
+                booking['time_slot']?.toString() ?? '',
                 style: TextStyle(
                   fontSize: 13,
                   color: Colors.grey[600],
@@ -338,17 +377,17 @@ class _ProviderIncomeSummaryScreenState extends State<ProviderIncomeSummaryScree
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: revenue.status == 'paid'
+                  color: status == 'completed'
                       ? Colors.green.withOpacity(0.1)
                       : AppColors.primaryOrange.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  revenue.status == 'paid' ? '入金済み' : '未入金',
+                  status == 'completed' ? '完了' : '進行中',
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
-                    color: revenue.status == 'paid' ? Colors.green : AppColors.primaryOrange,
+                    color: status == 'completed' ? Colors.green : AppColors.primaryOrange,
                   ),
                 ),
               ),

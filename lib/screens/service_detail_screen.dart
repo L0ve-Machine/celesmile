@@ -177,6 +177,94 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
 
                   const SizedBox(height: 16),
 
+                  // Service Areas
+                  if (_service!.serviceAreas.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.location_on,
+                                color: AppColors.primaryOrange,
+                                size: 20,
+                              ),
+                              const SizedBox(width: 4),
+                              const Text(
+                                '提供エリア',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: AppColors.primaryOrange.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: AppColors.primaryOrange.withOpacity(0.3),
+                              ),
+                            ),
+                            child: Text(
+                              _service!.serviceAreas,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: AppColors.textPrimary,
+                                height: 1.4,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                  if (_service!.serviceAreas.isNotEmpty)
+                    const SizedBox(height: 16),
+
+                  // Transportation Fee
+                  if (_service!.transportationFee > 0)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.train,
+                            color: AppColors.accentBlue,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          const Text(
+                            '交通費：',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '¥${_service!.transportationFee.toString()}',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.accentBlue,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                  if (_service!.transportationFee > 0)
+                    const SizedBox(height: 16),
+
                   // Description
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -525,6 +613,34 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
                     ),
                   ],
                   const SizedBox(height: 8),
+                  // Duration options
+                  if (item.durationOptions.isNotEmpty) ...[
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: item.durationOptions.map((duration) {
+                        return Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: AppColors.secondaryOrange.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(
+                              color: AppColors.primaryOrange.withOpacity(0.5),
+                            ),
+                          ),
+                          child: Text(
+                            '${duration}分',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: AppColors.primaryOrange,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
                   Text(
                     item.price,
                     style: TextStyle(

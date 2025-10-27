@@ -1,11 +1,54 @@
 const express = require('express');
 const mysql = require('mysql2/promise');
 const cors = require('cors');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 require('dotenv').config();
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Configure multer for profile image uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = '/var/www/celesmile/uploads/profiles';
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'profile-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  fileFilter: (req, file, cb) => {
+    console.log('File upload attempt:', {
+      originalname: file.originalname,
+      mimetype: file.mimetype,
+      size: file.size
+    });
+
+    const allowedTypes = /jpeg|jpg|png|gif|webp|octet-stream/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype) || file.mimetype === 'application/octet-stream';
+
+    // Accept if extension is valid, regardless of mimetype
+    if (extname) {
+      console.log('File accepted by extension');
+      return cb(null, true);
+    }
+
+    console.log('File rejected');
+    cb(new Error('Only image files are allowed'));
+  }
+});
 
 const pool = mysql.createPool({
   host: '127.0.0.1',
@@ -250,10 +293,10 @@ app.get('/api/menus/:salonId', async (req, res) => {
 // Create/Update menu
 app.post('/api/menus', async (req, res) => {
   try {
-    const { id, provider_id, salon_id, menu_name, description, price, duration, category } = req.body;
+    const { id, provider_id, salon_id, menu_name, description, price, duration, category, service_areas, transportation_fee, duration_options, optional_services } = req.body;
     const [result] = await pool.query(
-      'INSERT INTO service_menus (id, provider_id, salon_id, menu_name, description, price, duration, category) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE menu_name=?, description=?, price=?, duration=?, category=?',
-      [id, provider_id, salon_id, menu_name, description, price, duration, category, menu_name, description, price, duration, category]
+      'INSERT INTO service_menus (id, provider_id, salon_id, menu_name, description, price, duration, category, service_areas, transportation_fee, duration_options, optional_services) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE menu_name=?, description=?, price=?, duration=?, category=?, service_areas=?, transportation_fee=?, duration_options=?, optional_services=?',
+      [id, provider_id, salon_id, menu_name, description, price, duration, category, service_areas, transportation_fee, duration_options, optional_services, menu_name, description, price, duration, category, service_areas, transportation_fee, duration_options, optional_services]
     );
     res.json({ success: true, id });
   } catch (error) {
@@ -266,6 +309,23 @@ app.delete('/api/menus/:menuId', async (req, res) => {
   try {
     await pool.query('DELETE FROM service_menus WHERE id = ?', [req.params.menuId]);
     res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get provider by ID
+app.get('/api/providers/:providerId', async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      'SELECT * FROM providers WHERE id = ?',
+      [req.params.providerId]
+    );
+    if (rows.length > 0) {
+      res.json(rows[0]);
+    } else {
+      res.status(404).json({ error: 'Provider not found' });
+    }
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -285,6 +345,73 @@ app.post('/api/login', async (req, res) => {
       res.status(401).json({ success: false, error: 'Invalid credentials' });
     }
   } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Upload profile image
+app.post('/api/upload/profile-image', upload.single('image'), async (req, res) => {
+  try {
+    console.log('POST /api/upload/profile-image - File:', req.file);
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+    const imageUrl = `/uploads/profiles/${req.file.filename}`;
+    console.log('POST /api/upload/profile-image - Success:', imageUrl);
+    res.json({ success: true, imageUrl });
+  } catch (error) {
+    console.error('POST /api/upload/profile-image - Error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update provider profile
+app.patch('/api/providers/:providerId', async (req, res) => {
+  try {
+    console.log('PATCH /api/providers/:providerId - Request body:', req.body);
+    console.log('Provider ID:', req.params.providerId);
+    const { name, title, email, phone, bio, profile_image } = req.body;
+    await pool.query(
+      'UPDATE providers SET name=?, title=?, email=?, phone=?, bio=?, profile_image=? WHERE id=?',
+      [name, title, email, phone, bio, profile_image, req.params.providerId]
+    );
+    console.log('PATCH /api/providers/:providerId - Success');
+    res.json({ success: true });
+  } catch (error) {
+    console.error('PATCH /api/providers/:providerId - Error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Change provider password
+app.patch('/api/providers/:providerId/password', async (req, res) => {
+  try {
+    console.log('PATCH /api/providers/:providerId/password - Request body:', req.body);
+    console.log('Provider ID:', req.params.providerId);
+    const { current_password, new_password } = req.body;
+
+    // Verify current password
+    const [rows] = await pool.query(
+      'SELECT * FROM providers WHERE id = ? AND password = ?',
+      [req.params.providerId, current_password]
+    );
+
+    if (rows.length === 0) {
+      console.log('PATCH /api/providers/:providerId/password - Current password incorrect');
+      res.status(401).json({ success: false, error: 'Current password is incorrect' });
+      return;
+    }
+
+    // Update password
+    await pool.query(
+      'UPDATE providers SET password = ? WHERE id = ?',
+      [new_password, req.params.providerId]
+    );
+
+    console.log('PATCH /api/providers/:providerId/password - Success');
+    res.json({ success: true });
+  } catch (error) {
+    console.error('PATCH /api/providers/:providerId/password - Error:', error.message);
     res.status(500).json({ error: error.message });
   }
 });

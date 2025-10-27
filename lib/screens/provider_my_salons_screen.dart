@@ -115,6 +115,54 @@ class _ProviderMySalonsScreenState extends State<ProviderMySalonsScreen> {
     );
   }
 
+  void _showDeleteConfirmation(String salonId, String salonName) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('サロンを削除'),
+        content: Text('「$salonName」を削除してもよろしいですか？\n\nこの操作は取り消せません。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('キャンセル'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _deleteSalon(salonId);
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('削除'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteSalon(String salonId) async {
+    try {
+      await MySQLService.instance.deleteSalon(salonId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('サロンを削除しました'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        setState(() {}); // Refresh the list
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('削除に失敗しました: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   Widget _buildSalonCard(Map<String, dynamic> salon) {
     final salonName = salon['salon_name'] ?? '';
     final category = salon['category'] ?? '';
@@ -307,6 +355,21 @@ class _ProviderMySalonsScreenState extends State<ProviderMySalonsScreen> {
                       ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 12),
+                // Delete button
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _showDeleteConfirmation(salonId, salonName),
+                    icon: const Icon(Icons.delete_outline, size: 18),
+                    label: const Text('サロンを削除'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.red,
+                      side: const BorderSide(color: Colors.red),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
                 ),
               ],
             ),

@@ -52,6 +52,17 @@ class _MenuRegistrationScreenState extends State<MenuRegistrationScreen> {
             item.priceController.text = menu['price']?.toString() ?? '';
             item.durationController.text = menu['duration']?.toString() ?? '';
             item.selectedCategory = menu['category'];
+            final serviceAreasStr = menu['service_areas'] ?? '';
+            item.selectedServiceAreas = serviceAreasStr.isNotEmpty
+                ? serviceAreasStr.split(',').map((e) => e.trim()).toList()
+                : [];
+            item.transportationFeeController.text = menu['transportation_fee']?.toString() ?? '0';
+
+            // Parse duration options
+            if (menu['duration_options'] != null && menu['duration_options'].toString().isNotEmpty) {
+              item.durationOptions = menu['duration_options'].toString().split(',');
+            }
+
             _menuItems.add(item);
           }
           _isLoading = false;
@@ -143,6 +154,12 @@ class _MenuRegistrationScreenState extends State<MenuRegistrationScreen> {
           'price': int.parse(item.priceController.text),
           'duration': int.parse(item.durationController.text),
           'category': item.selectedCategory ?? '',
+          'service_areas': item.selectedServiceAreas.join(', '),
+          'transportation_fee': int.parse(item.transportationFeeController.text),
+          'duration_options': item.durationOptions.join(','),
+          'optional_services': item.optionalServices.isNotEmpty
+              ? item.optionalServices.map((e) => '${e['name']}:${e['price']}').join(',')
+              : '',
         };
 
         await MySQLService.instance.saveMenu(menuData);
@@ -497,6 +514,129 @@ class _MenuRegistrationScreenState extends State<MenuRegistrationScreen> {
               required: true,
               maxLines: 3,
             ),
+            const SizedBox(height: 16),
+
+            // Service Areas
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Text(
+                      '提供エリア',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    const Text(
+                      '*',
+                      style: TextStyle(
+                        color: Colors.red,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: MenuItemData.kantoAreas.map((area) {
+                    final isSelected = item.selectedServiceAreas.contains(area);
+                    return FilterChip(
+                      label: Text(area),
+                      selected: isSelected,
+                      onSelected: (selected) {
+                        setState(() {
+                          if (selected) {
+                            item.selectedServiceAreas.add(area);
+                          } else {
+                            item.selectedServiceAreas.remove(area);
+                          }
+                        });
+                      },
+                      selectedColor: AppColors.primaryOrange.withOpacity(0.3),
+                      checkmarkColor: AppColors.primaryOrange,
+                      backgroundColor: Colors.white,
+                      side: BorderSide(
+                        color: isSelected
+                            ? AppColors.primaryOrange
+                            : AppColors.lightGray,
+                        width: isSelected ? 2 : 1,
+                      ),
+                      labelStyle: TextStyle(
+                        color: isSelected
+                            ? AppColors.primaryOrange
+                            : AppColors.textPrimary,
+                        fontWeight:
+                            isSelected ? FontWeight.w600 : FontWeight.normal,
+                      ),
+                    );
+                  }).toList(),
+                ),
+                if (item.selectedServiceAreas.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      '※ 少なくとも1つのエリアを選択してください',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.red[700],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Transportation Fee
+            _buildTextField(
+              controller: item.transportationFeeController,
+              label: '交通費（円）',
+              hint: '例：1000',
+              required: true,
+              keyboardType: TextInputType.number,
+            ),
+            const SizedBox(height: 16),
+
+            // Duration Options
+            const Text(
+              'サービス時間オプション',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: ['30', '60', '90', '120'].map((duration) {
+                final isSelected = item.durationOptions.contains(duration);
+                return FilterChip(
+                  label: Text('${duration}分'),
+                  selected: isSelected,
+                  onSelected: (selected) {
+                    setState(() {
+                      if (selected) {
+                        item.durationOptions.add(duration);
+                      } else {
+                        if (item.durationOptions.length > 1) {
+                          item.durationOptions.remove(duration);
+                        }
+                      }
+                    });
+                  },
+                  selectedColor: AppColors.primaryOrange.withOpacity(0.3),
+                  checkmarkColor: AppColors.primaryOrange,
+                  backgroundColor: Colors.grey[200],
+                );
+              }).toList(),
+            ),
           ],
         ),
       ),
@@ -591,14 +731,32 @@ class MenuItemData {
   final TextEditingController priceController = TextEditingController();
   final TextEditingController durationController = TextEditingController();
   final TextEditingController descriptionController = TextEditingController();
+  List<String> selectedServiceAreas = []; // 選択された提供エリア
+  final TextEditingController transportationFeeController = TextEditingController();
   String? selectedCategory;
+  List<String> durationOptions = ['60']; // デフォルトは60分
+  List<Map<String, dynamic>> optionalServices = []; // {name: String, price: int}
+
+  // 関東圏の都道府県リスト
+  static const List<String> kantoAreas = [
+    '東京都',
+    '神奈川県',
+    '千葉県',
+    '埼玉県',
+    '茨城県',
+    '栃木県',
+    '群馬県',
+  ];
 
   bool isValid() {
     return nameController.text.isNotEmpty &&
         priceController.text.isNotEmpty &&
         durationController.text.isNotEmpty &&
         descriptionController.text.isNotEmpty &&
-        selectedCategory != null;
+        selectedServiceAreas.isNotEmpty &&
+        transportationFeeController.text.isNotEmpty &&
+        selectedCategory != null &&
+        durationOptions.isNotEmpty;
   }
 
   void dispose() {
@@ -606,5 +764,6 @@ class MenuItemData {
     priceController.dispose();
     durationController.dispose();
     descriptionController.dispose();
+    transportationFeeController.dispose();
   }
 }

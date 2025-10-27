@@ -1,9 +1,9 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import '../constants/colors.dart';
-import '../services/provider_database_service.dart';
+import '../services/mysql_service.dart';
 import '../services/auth_service.dart';
 
 class ProviderProfileEditScreen extends StatefulWidget {
@@ -15,7 +15,6 @@ class ProviderProfileEditScreen extends StatefulWidget {
 
 class _ProviderProfileEditScreenState extends State<ProviderProfileEditScreen> {
   final _formKey = GlobalKey<FormState>();
-  final providerDb = ProviderDatabaseService();
 
   // Controllers
   final _nameController = TextEditingController();
@@ -23,15 +22,10 @@ class _ProviderProfileEditScreenState extends State<ProviderProfileEditScreen> {
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
   final _bioController = TextEditingController();
-  final _currentPasswordController = TextEditingController();
-  final _newPasswordController = TextEditingController();
-  final _confirmPasswordController = TextEditingController();
 
   String? _providerId;
-  File? _imageFile;
-  String? _profileImagePath;
+  String? _profileImageUrl;
   bool _isLoading = false;
-  bool _showPasswordChange = false;
 
   @override
   void initState() {
@@ -46,9 +40,6 @@ class _ProviderProfileEditScreenState extends State<ProviderProfileEditScreen> {
     _emailController.dispose();
     _phoneController.dispose();
     _bioController.dispose();
-    _currentPasswordController.dispose();
-    _newPasswordController.dispose();
-    _confirmPasswordController.dispose();
     super.dispose();
   }
 
@@ -56,71 +47,99 @@ class _ProviderProfileEditScreenState extends State<ProviderProfileEditScreen> {
     // Load provider ID
     _providerId = AuthService.currentUserProviderId ?? 'test_provider_001';
 
-    // Load provider data
-    final provider = providerDb.getProvider(_providerId!);
+    // Load provider data from MySQL
+    final provider = await MySQLService.instance.getProviderById(_providerId!);
     if (provider != null) {
       setState(() {
-        _nameController.text = provider.name;
-        _titleController.text = provider.title;
-        _emailController.text = provider.email ?? '';
-        _phoneController.text = provider.phone ?? '';
-        _bioController.text = provider.bio ?? '';
+        _nameController.text = provider['name']?.toString() ?? '';
+        _titleController.text = provider['title']?.toString() ?? '';
+        _emailController.text = provider['email']?.toString() ?? '';
+        _phoneController.text = provider['phone']?.toString() ?? '';
+        _bioController.text = provider['bio']?.toString() ?? '';
+        _profileImageUrl = provider['profile_image']?.toString();
       });
     }
-
-    // Load saved profile image path
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _profileImagePath = prefs.getString('provider_profile_image_$_providerId');
-      if (_profileImagePath != null) {
-        _imageFile = File(_profileImagePath!);
-      }
-    });
   }
 
-  Future<void> _pickImage() async {
-    final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 80,
-      maxWidth: 800,
-      maxHeight: 800,
-    );
-
-    if (pickedFile != null) {
-      setState(() {
-        _imageFile = File(pickedFile.path);
-        _profileImagePath = pickedFile.path;
-      });
-
-      // Save image path to SharedPreferences
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('provider_profile_image_$_providerId', pickedFile.path);
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('プロフィール画像を更新しました'),
-          backgroundColor: AppColors.primaryOrange,
-        ),
+  Future<void> _pickAndUploadImage() async {
+    try {
+      print('=== Starting image pick ===');
+      final picker = ImagePicker();
+      final pickedFile = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 85,
       );
+
+      print('Picked file: ${pickedFile?.name}');
+      if (pickedFile == null) {
+        print('No file picked');
+        return;
+      }
+
+      setState(() => _isLoading = true);
+      print('Starting upload...');
+
+      // Upload image to server
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('/api/upload/profile-image'),
+      );
+
+      print('Reading file bytes...');
+      final bytes = await pickedFile.readAsBytes();
+      print('File size: ${bytes.length} bytes');
+
+      request.files.add(http.MultipartFile.fromBytes(
+        'image',
+        bytes,
+        filename: pickedFile.name,
+      ));
+
+      print('Sending request to /api/upload/profile-image');
+      final response = await request.send();
+      print('Response status code: ${response.statusCode}');
+
+      final responseData = await response.stream.bytesToString();
+      print('Response data: $responseData');
+
+      if (response.statusCode == 200) {
+        final jsonResponse = json.decode(responseData);
+        final imageUrl = jsonResponse['imageUrl'] as String;
+        print('Image URL received: $imageUrl');
+
+        setState(() {
+          _profileImageUrl = imageUrl;
+          _isLoading = false;
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('プロフィール画像をアップロードしました'),
+              backgroundColor: AppColors.primaryOrange,
+            ),
+          );
+        }
+      } else {
+        print('Upload failed with status: ${response.statusCode}');
+        throw Exception('Upload failed with status ${response.statusCode}');
+      }
+    } catch (e, stackTrace) {
+      print('=== Upload error ===');
+      print('Error: $e');
+      print('Stack trace: $stackTrace');
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('画像アップロードに失敗しました: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
-  }
-
-  Future<void> _removeImage() async {
-    setState(() {
-      _imageFile = null;
-      _profileImagePath = null;
-    });
-
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('provider_profile_image_$_providerId');
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('プロフィール画像を削除しました'),
-        backgroundColor: AppColors.primaryOrange,
-      ),
-    );
   }
 
   Future<void> _saveProfile() async {
@@ -129,15 +148,30 @@ class _ProviderProfileEditScreenState extends State<ProviderProfileEditScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // Save to SharedPreferences (simulating database update)
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('provider_name_$_providerId', _nameController.text);
-      await prefs.setString('provider_title_$_providerId', _titleController.text);
-      await prefs.setString('provider_email_$_providerId', _emailController.text);
-      await prefs.setString('provider_phone_$_providerId', _phoneController.text);
-      await prefs.setString('provider_bio_$_providerId', _bioController.text);
+      print('Saving profile for provider: $_providerId');
+      print('Name: ${_nameController.text}');
+      print('Title: ${_titleController.text}');
+      print('Email: ${_emailController.text}');
+      print('Phone: ${_phoneController.text}');
+      print('Bio: ${_bioController.text}');
+      print('Profile Image: $_profileImageUrl');
 
-      if (mounted) {
+      // Save to database via API
+      final success = await MySQLService.instance.updateProviderProfile(
+        _providerId!,
+        {
+          'name': _nameController.text,
+          'title': _titleController.text,
+          'email': _emailController.text,
+          'phone': _phoneController.text,
+          'bio': _bioController.text,
+          'profile_image': _profileImageUrl,
+        },
+      );
+
+      print('Save result: $success');
+
+      if (success && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('プロフィールを更新しました'),
@@ -145,71 +179,23 @@ class _ProviderProfileEditScreenState extends State<ProviderProfileEditScreen> {
           ),
         );
         Navigator.pop(context);
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('エラーが発生しました: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    } finally {
-      setState(() => _isLoading = false);
-    }
-  }
-
-  Future<void> _changePassword() async {
-    if (_newPasswordController.text != _confirmPasswordController.text) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('新しいパスワードが一致しません'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    if (_newPasswordController.text.length < 8) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('パスワードは8文字以上で入力してください'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    setState(() => _isLoading = true);
-
-    try {
-      // Simulate password change
-      await Future.delayed(const Duration(seconds: 1));
-
-      // Save new password to SharedPreferences (for demo)
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('provider_password_$_providerId', _newPasswordController.text);
-
-      if (mounted) {
+      } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('パスワードを変更しました'),
-            backgroundColor: AppColors.primaryOrange,
+            content: Text('プロフィールの更新に失敗しました'),
+            backgroundColor: Colors.red,
           ),
         );
-
-        // Clear password fields
-        _currentPasswordController.clear();
-        _newPasswordController.clear();
-        _confirmPasswordController.clear();
-        setState(() => _showPasswordChange = false);
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('パスワード変更に失敗しました: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('エラーが発生しました: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } finally {
       setState(() => _isLoading = false);
     }
@@ -260,16 +246,16 @@ class _ProviderProfileEditScreenState extends State<ProviderProfileEditScreen> {
                 child: Column(
                   children: [
                     GestureDetector(
-                      onTap: _pickImage,
+                      onTap: _pickAndUploadImage,
                       child: Stack(
                         children: [
                           CircleAvatar(
                             radius: 60,
                             backgroundColor: AppColors.secondaryOrange.withOpacity(0.3),
-                            backgroundImage: _imageFile != null
-                                ? FileImage(_imageFile!) as ImageProvider
+                            backgroundImage: _profileImageUrl != null
+                                ? NetworkImage(_profileImageUrl!) as ImageProvider
                                 : null,
-                            child: _imageFile == null
+                            child: _profileImageUrl == null
                                 ? const Icon(
                                     Icons.camera_alt,
                                     color: AppColors.primaryOrange,
@@ -298,27 +284,12 @@ class _ProviderProfileEditScreenState extends State<ProviderProfileEditScreen> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        TextButton(
-                          onPressed: _pickImage,
-                          child: const Text(
-                            '画像を選択',
-                            style: TextStyle(color: AppColors.primaryOrange),
-                          ),
-                        ),
-                        if (_imageFile != null) ...[
-                          const Text(' | '),
-                          TextButton(
-                            onPressed: _removeImage,
-                            child: const Text(
-                              '削除',
-                              style: TextStyle(color: Colors.red),
-                            ),
-                          ),
-                        ],
-                      ],
+                    TextButton(
+                      onPressed: _pickAndUploadImage,
+                      child: const Text(
+                        '画像を選択',
+                        style: TextStyle(color: AppColors.primaryOrange),
+                      ),
                     ),
                   ],
                 ),
@@ -441,86 +412,6 @@ class _ProviderProfileEditScreenState extends State<ProviderProfileEditScreen> {
                 maxLines: 4,
                 maxLength: 500,
               ),
-              const SizedBox(height: 32),
-
-              // Password Change Section
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'パスワード変更',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  IconButton(
-                    icon: Icon(
-                      _showPasswordChange ? Icons.expand_less : Icons.expand_more,
-                    ),
-                    onPressed: () {
-                      setState(() => _showPasswordChange = !_showPasswordChange);
-                    },
-                  ),
-                ],
-              ),
-
-              if (_showPasswordChange) ...[
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _currentPasswordController,
-                  decoration: const InputDecoration(
-                    labelText: '現在のパスワード',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.lock_outline),
-                  ),
-                  obscureText: true,
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _newPasswordController,
-                  decoration: const InputDecoration(
-                    labelText: '新しいパスワード',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.lock_outline),
-                    helperText: '8文字以上で入力してください',
-                  ),
-                  obscureText: true,
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _confirmPasswordController,
-                  decoration: const InputDecoration(
-                    labelText: '新しいパスワード（確認）',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.lock_outline),
-                  ),
-                  obscureText: true,
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _isLoading ? null : _changePassword,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primaryOrange,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    child: const Text(
-                      'パスワードを変更',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
               const SizedBox(height: 40),
             ],
           ),

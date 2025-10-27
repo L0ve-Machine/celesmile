@@ -29,6 +29,7 @@ import 'screens/provider_income_summary_screen.dart';
 import 'screens/provider_my_salons_screen.dart';
 import 'screens/provider_settings_screen.dart';
 import 'screens/provider_profile_edit_screen.dart';
+import 'screens/provider_password_change_screen.dart';
 import 'screens/chat_list_screen.dart';
 import 'screens/chat_room_screen.dart';
 import 'screens/debug_chat_screen.dart';
@@ -120,6 +121,7 @@ class CelesmileApp extends StatelessWidget {
         '/provider-my-salons': (context) => const ProviderMySalonsScreen(),
         '/provider-settings': (context) => const ProviderSettingsScreen(),
         '/provider-profile-edit': (context) => const ProviderProfileEditScreen(),
+        '/provider-password-change': (context) => const ProviderPasswordChangeScreen(),
         '/service-detail': (context) => const ServiceDetailScreen(),
         '/booking-confirmation': (context) =>
             const BookingConfirmationScreen(),

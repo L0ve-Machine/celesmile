@@ -15,6 +15,11 @@ class _ProfileRegistrationScreenState extends State<ProfileRegistrationScreen> {
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _inviteCodeController = TextEditingController();
+  final TextEditingController _postalCodeController = TextEditingController();
+  final TextEditingController _prefectureController = TextEditingController();
+  final TextEditingController _cityController = TextEditingController();
+  final TextEditingController _addressController = TextEditingController();
+  final TextEditingController _buildingController = TextEditingController();
 
   String? _selectedGender;
   String? _selectedBirthDate;
@@ -39,6 +44,11 @@ class _ProfileRegistrationScreenState extends State<ProfileRegistrationScreen> {
       _phoneController.text = profile.phone ?? '';
       _emailController.text = profile.email ?? '';
       _inviteCodeController.text = profile.inviteCode ?? '';
+      _postalCodeController.text = profile.postalCode ?? '';
+      _prefectureController.text = profile.prefecture ?? '';
+      _cityController.text = profile.city ?? '';
+      _addressController.text = profile.address ?? '';
+      _buildingController.text = profile.building ?? '';
       setState(() {});
     }
   }
@@ -49,6 +59,11 @@ class _ProfileRegistrationScreenState extends State<ProfileRegistrationScreen> {
     _phoneController.dispose();
     _emailController.dispose();
     _inviteCodeController.dispose();
+    _postalCodeController.dispose();
+    _prefectureController.dispose();
+    _cityController.dispose();
+    _addressController.dispose();
+    _buildingController.dispose();
     super.dispose();
   }
 
@@ -108,6 +123,88 @@ class _ProfileRegistrationScreenState extends State<ProfileRegistrationScreen> {
             _buildLabel('Eメール'),
             const SizedBox(height: 8),
             _buildTextField(_emailController, 'sample@hogugu.com', keyboardType: TextInputType.emailAddress),
+
+            const SizedBox(height: 20),
+
+            // 住所セクション
+            _buildLabel('住所'),
+            const SizedBox(height: 8),
+            Text(
+              'サービス提供時の住所を登録してください',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[600],
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // 郵便番号
+            Text(
+              '郵便番号',
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.grey[700],
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 6),
+            _buildTextField(_postalCodeController, '123-4567', keyboardType: TextInputType.number),
+
+            const SizedBox(height: 12),
+
+            // 都道府県
+            Text(
+              '都道府県',
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.grey[700],
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 6),
+            _buildTextField(_prefectureController, '東京都'),
+
+            const SizedBox(height: 12),
+
+            // 市区町村
+            Text(
+              '市区町村',
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.grey[700],
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 6),
+            _buildTextField(_cityController, '渋谷区'),
+
+            const SizedBox(height: 12),
+
+            // 番地
+            Text(
+              '番地',
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.grey[700],
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 6),
+            _buildTextField(_addressController, '1-2-3'),
+
+            const SizedBox(height: 12),
+
+            // 建物名・部屋番号
+            Text(
+              '建物名・部屋番号（任意）',
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.grey[700],
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 6),
+            _buildTextField(_buildingController, 'マンション名 101号室'),
 
             const SizedBox(height: 20),
 
@@ -675,6 +772,26 @@ class _ProfileRegistrationScreenState extends State<ProfileRegistrationScreen> {
       return;
     }
 
+    if (_postalCodeController.text.trim().isEmpty) {
+      _showError('郵便番号を入力してください');
+      return;
+    }
+
+    if (_prefectureController.text.trim().isEmpty) {
+      _showError('都道府県を入力してください');
+      return;
+    }
+
+    if (_cityController.text.trim().isEmpty) {
+      _showError('市区町村を入力してください');
+      return;
+    }
+
+    if (_addressController.text.trim().isEmpty) {
+      _showError('番地を入力してください');
+      return;
+    }
+
     // プロフィール保存
     final profile = UserProfile()
       ..name = _nameController.text.trim()
@@ -682,15 +799,20 @@ class _ProfileRegistrationScreenState extends State<ProfileRegistrationScreen> {
       ..birthDate = _selectedBirthDate
       ..phone = _phoneController.text.trim()
       ..email = _emailController.text.trim()
-      ..inviteCode = _inviteCodeController.text.trim();
+      ..inviteCode = _inviteCodeController.text.trim()
+      ..postalCode = _postalCodeController.text.trim()
+      ..prefecture = _prefectureController.text.trim()
+      ..city = _cityController.text.trim()
+      ..address = _addressController.text.trim()
+      ..building = _buildingController.text.trim();
 
     await AuthService.saveProfile(profile);
 
-    // マイページから来た場合は戻る、それ以外は決済情報登録画面へ
+    // マイページから来た場合は戻る、それ以外はダッシュボードへ
     if (Navigator.canPop(context)) {
       Navigator.pop(context);
     } else {
-      Navigator.pushReplacementNamed(context, '/payment-registration');
+      Navigator.pushReplacementNamed(context, '/dashboard');
     }
   }
 

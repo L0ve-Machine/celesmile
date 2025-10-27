@@ -57,7 +57,10 @@ class _ProviderAvailabilityCalendarScreenState extends State<ProviderAvailabilit
       final Map<String, List<TimeSlot>> availabilityMap = {};
       for (var record in availabilityData) {
         if (record['is_available'] == 1 || record['is_available'] == true) {
-          final date = record['date'].toString().split(' ')[0]; // Get date part only
+          // Extract date in YYYY-MM-DD format - handle both ISO format and simple format
+          final dateStr = record['date'].toString();
+          final date = dateStr.split('T')[0]; // This extracts '2025-10-24' from both '2025-10-24T00:00:00.000Z' and '2025-10-24'
+
           final timeSlot = record['time_slot'] ?? '';
           final parts = timeSlot.split('-');
           if (parts.length == 2) {
@@ -141,8 +144,17 @@ class _ProviderAvailabilityCalendarScreenState extends State<ProviderAvailabilit
     if (_providerId == null) return;
 
     try {
-      // Convert local state to API format and save each slot
+      // First, normalize all keys in _availability to YYYY-MM-DD format
+      final normalizedAvailability = <String, List<TimeSlot>>{};
       for (var dateEntry in _availability.entries) {
+        final dateKey = dateEntry.key;
+        // Extract date in YYYY-MM-DD format from the key (which might be in ISO format or already normalized)
+        final normalizedDate = dateKey.split('T')[0]; // This will extract '2025-10-24' from '2025-10-24T00:00:00.000Z' or keep '2025-10-24' as is
+        normalizedAvailability[normalizedDate] = dateEntry.value;
+      }
+
+      // Convert local state to API format and save each slot
+      for (var dateEntry in normalizedAvailability.entries) {
         final date = dateEntry.key;
         final slots = dateEntry.value;
 
@@ -152,7 +164,7 @@ class _ProviderAvailabilityCalendarScreenState extends State<ProviderAvailabilit
           final isAvailable = slots.any((s) => s.startTime == slot.startTime && s.endTime == slot.endTime);
 
           final availabilityData = {
-            'id': 'avail_${_providerId}_${date}_${slot.startTime.replaceAll(':', '')}',
+            'id': 'avail_${_providerId}_${date.replaceAll('-', '')}_${slot.startTime.replaceAll(':', '')}',
             'provider_id': _providerId,
             'date': date,
             'time_slot': timeSlot,
@@ -162,6 +174,11 @@ class _ProviderAvailabilityCalendarScreenState extends State<ProviderAvailabilit
           await MySQLService.instance.updateAvailability(availabilityData);
         }
       }
+
+      // Update _availability with normalized keys before reloading
+      setState(() {
+        _availability = normalizedAvailability;
+      });
 
       // Reload availability after saving
       await _loadAvailability();
@@ -373,7 +390,8 @@ class _ProviderAvailabilityCalendarScreenState extends State<ProviderAvailabilit
                       _selectedDate!.year == date.year &&
                       _selectedDate!.month == date.month &&
                       _selectedDate!.day == date.day;
-                  final hasAvailability = _availability.containsKey(_getDateKey(date)) &&
+                  final hasAvailability = !isPastDate &&
+                      _availability.containsKey(_getDateKey(date)) &&
                       _availability[_getDateKey(date)]!.isNotEmpty;
 
                   return Expanded(

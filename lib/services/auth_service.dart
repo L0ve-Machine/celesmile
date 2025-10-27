@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
+import 'mysql_service.dart';
 
 class UserProfile {
   String? name;
@@ -8,6 +10,11 @@ class UserProfile {
   String? phone;
   String? email;
   String? inviteCode;
+  String? postalCode;
+  String? prefecture;
+  String? city;
+  String? address;
+  String? building;
 
   UserProfile();
 
@@ -16,7 +23,11 @@ class UserProfile {
         gender != null &&
         birthDate != null &&
         phone != null &&
-        email != null;
+        email != null &&
+        postalCode != null &&
+        prefecture != null &&
+        city != null &&
+        address != null;
   }
 
   // JSON変換
@@ -28,6 +39,11 @@ class UserProfile {
       'phone': phone,
       'email': email,
       'inviteCode': inviteCode,
+      'postalCode': postalCode,
+      'prefecture': prefecture,
+      'city': city,
+      'address': address,
+      'building': building,
     };
   }
 
@@ -38,7 +54,12 @@ class UserProfile {
       ..birthDate = json['birthDate']
       ..phone = json['phone']
       ..email = json['email']
-      ..inviteCode = json['inviteCode'];
+      ..inviteCode = json['inviteCode']
+      ..postalCode = json['postalCode']
+      ..prefecture = json['prefecture']
+      ..city = json['city']
+      ..address = json['address']
+      ..building = json['building'];
   }
 }
 
@@ -100,7 +121,12 @@ class AuthService {
       ..birthDate = '1990年1月1日'
       ..phone = '080-1234-5678'
       ..email = 'user@celesmile.com'
-      ..inviteCode = '';
+      ..inviteCode = ''
+      ..postalCode = '150-0001'
+      ..prefecture = '東京都'
+      ..city = '渋谷区'
+      ..address = '神宮前1-2-3'
+      ..building = 'テストマンション101';
 
     _profiles['user'] = userProfile;
 
@@ -141,6 +167,26 @@ class AuthService {
     // Initialize test users on first login attempt
     _initializeTestUsers();
 
+    // For provider users (those with mapped provider IDs), use MySQL API
+    if (_userProviderIds.containsKey(username)) {
+      try {
+        final providerId = _userProviderIds[username]!;
+        // Get provider from database to verify credentials
+        final provider = await MySQLService.instance.getProviderById(providerId);
+        if (provider != null && provider['password'] == password) {
+          _currentUser = username;
+          // SharedPreferencesからデータを読み込み
+          await _loadUserData(username);
+          return true;
+        }
+        return false;
+      } catch (e) {
+        print('Provider login error: $e');
+        return false;
+      }
+    }
+
+    // For regular users, use hardcoded credentials
     if (_users.containsKey(username)) {
       if (_users[username] == password) {
         _currentUser = username;
