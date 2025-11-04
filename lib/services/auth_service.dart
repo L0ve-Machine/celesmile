@@ -165,37 +165,80 @@ class AuthService {
     }
   }
 
+  // Current JWT token
+  static String? _currentToken;
+
+  // Get current token
+  static String? get currentToken => _currentToken;
+
+  // Last login error message
+  static String? _lastLoginError;
+
+  // Get last login error
+  static String? get lastLoginError => _lastLoginError;
+
   // ログイン検証
   static Future<bool> login(String username, String password) async {
-    // Initialize test users on first login attempt
-    _initializeTestUsers();
+    _lastLoginError = null;
 
-    // For regular users, use hardcoded credentials
-    if (_users.containsKey(username)) {
-      if (_users[username] == password) {
-        _currentUser = username;
-        // SharedPreferencesからデータを読み込み
-        await _loadUserData(username);
-        await loadProviderStatus();
+    try {
+      // Call real API for authentication
+      final result = await MySQLService.instance.login(username, password);
 
-        // If user has a provider ID, try to load from MySQL
-        if (_userProviderIds.containsKey(username)) {
-          try {
-            final providerId = _userProviderIds[username]!;
-            final provider = await MySQLService.instance.getProviderById(providerId);
-            if (provider != null) {
-              print('✅ Provider data loaded from MySQL: $providerId');
-            }
-          } catch (e) {
-            print('⚠️ Provider data not in MySQL yet: $e');
-            // Continue with login even if provider data is not in MySQL yet
+      if (result != null && result['success'] == true) {
+        // Store token
+        _currentToken = result['token'];
+
+        // Save token to SharedPreferences
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('auth_token', _currentToken!);
+
+        // Get provider data
+        final provider = result['provider'];
+        if (provider != null) {
+          _currentUser = provider['email'] ?? username;
+
+          // If user has a provider ID, load additional data
+          if (provider['id'] != null) {
+            _userProviderIds[_currentUser!] = provider['id'];
+            await prefs.setString('provider_id_$_currentUser', provider['id']);
           }
         }
 
+        // Load user data
+        await _loadUserData(_currentUser!);
+        await loadProviderStatus();
+
+        print('✅ Login successful: $_currentUser');
         return true;
+      } else {
+        // Handle various error types
+        final errorType = result?['type'];
+        final errorMessage = result?['message'] ?? result?['error'] ?? 'ログインに失敗しました';
+        final remainingAttempts = result?['remainingAttempts'];
+        final remainingMinutes = result?['remainingMinutes'];
+
+        // Build user-friendly error message
+        if (errorType == 'ACCOUNT_LOCKED') {
+          _lastLoginError = 'アカウントが一時的にロックされています。\n${remainingMinutes}分後に再試行してください。';
+        } else if (errorType == 'DEVICE_BLOCKED') {
+          _lastLoginError = 'デバイスが一時的にブロックされています。\n${remainingMinutes}分後に再試行してください。';
+        } else if (errorType == 'AUTH_RATE_LIMIT_EXCEEDED' || errorType == 'RATE_LIMIT_EXCEEDED') {
+          _lastLoginError = 'リクエストが多すぎます。\nしばらく待ってから再試行してください。';
+        } else if (remainingAttempts != null) {
+          _lastLoginError = 'ログインに失敗しました。\n残り試行回数: $remainingAttempts';
+        } else {
+          _lastLoginError = errorMessage;
+        }
+
+        print('❌ Login failed: $_lastLoginError');
+        return false;
       }
+    } catch (e) {
+      print('❌ Login error: $e');
+      _lastLoginError = 'ネットワークエラーが発生しました。\nもう一度お試しください。';
+      return false;
     }
-    return false;
   }
 
   // ユーザー名の検証

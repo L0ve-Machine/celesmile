@@ -299,12 +299,9 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
         Navigator.pushReplacementNamed(context, '/profile-registration');
       }
     } else {
-      // ログイン失敗
-      if (AuthService.userExists(username)) {
-        _showErrorDialog('パスワードが間違っています');
-      } else {
-        _showErrorDialog('ユーザーが見つかりません');
-      }
+      // ログイン失敗 - AuthServiceから詳細なエラーメッセージを取得
+      final errorMessage = AuthService.lastLoginError ?? 'ログインに失敗しました';
+      _showErrorDialog(errorMessage);
     }
   }
 

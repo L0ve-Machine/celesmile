@@ -1,5 +1,6 @@
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'auth_service.dart';
 
 class MySQLService {
   static MySQLService? _instance;
@@ -10,6 +11,20 @@ class MySQLService {
   static MySQLService get instance {
     _instance ??= MySQLService._();
     return _instance!;
+  }
+
+  // Helper to get headers with auth token
+  Map<String, String> _getHeaders({bool includeAuth = false}) {
+    final headers = {'Content-Type': 'application/json'};
+
+    if (includeAuth) {
+      final token = AuthService.currentToken;
+      if (token != null) {
+        headers['Authorization'] = 'Bearer $token';
+      }
+    }
+
+    return headers;
   }
 
   // Salon methods
@@ -179,18 +194,43 @@ class MySQLService {
 
   // Login
   Future<Map<String, dynamic>?> login(String email, String password) async {
-    final response = await http.post(
-      Uri.parse('$baseUrl/login'),
-      headers: {'Content-Type': 'application/json'},
-      body: json.encode({'email': email, 'password': password}),
-    );
-    if (response.statusCode == 200) {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/login'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({'email': email, 'password': password}),
+      );
+
       final data = json.decode(response.body);
-      if (data['success'] == true) {
-        return data['provider'];
+
+      // Handle success (200)
+      if (response.statusCode == 200) {
+        return data;
       }
+
+      // Handle rate limiting (429)
+      if (response.statusCode == 429) {
+        print('⚠️ Rate limit exceeded: ${data['message'] ?? data['error']}');
+        return data;
+      }
+
+      // Handle account locked (423)
+      if (response.statusCode == 423) {
+        print('🔒 Account locked: ${data['message'] ?? data['error']}');
+        return data;
+      }
+
+      // Handle other errors (401, 400, etc.)
+      if (response.statusCode >= 400) {
+        print('❌ Login failed (${response.statusCode}): ${data['error']}');
+        return data;
+      }
+
+      return null;
+    } catch (e) {
+      print('❌ Login request error: $e');
+      return {'success': false, 'error': 'Network error. Please try again.'};
     }
-    return null;
   }
 
   // Update provider profile
