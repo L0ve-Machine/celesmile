@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../constants/colors.dart';
 import '../services/auth_service.dart';
 
@@ -94,7 +95,7 @@ class _ProfileRegistrationScreenState extends State<ProfileRegistrationScreen> {
             // 登録名
             _buildLabel('登録名'),
             const SizedBox(height: 8),
-            _buildTextField(_nameController, 'ほぐぐ 太郎'),
+            _buildTextField(_nameController, 'セレ スマ子'),
 
             const SizedBox(height: 20),
 
@@ -122,7 +123,7 @@ class _ProfileRegistrationScreenState extends State<ProfileRegistrationScreen> {
             // Eメール
             _buildLabel('Eメール'),
             const SizedBox(height: 8),
-            _buildTextField(_emailController, 'sample@hogugu.com', keyboardType: TextInputType.emailAddress),
+            _buildTextField(_emailController, 'test@celesmile.com', keyboardType: TextInputType.emailAddress),
 
             const SizedBox(height: 20),
 
@@ -506,8 +507,11 @@ class _ProfileRegistrationScreenState extends State<ProfileRegistrationScreen> {
             child: Row(
               children: [
                 GestureDetector(
-                  onTap: () {
-                    // TODO: Open terms page
+                  onTap: () async {
+                    final url = Uri.parse('https://celesmile-demo.duckdns.org/terms-of-service.html');
+                    if (await canLaunchUrl(url)) {
+                      await launchUrl(url, mode: LaunchMode.externalApplication);
+                    }
                   },
                   child: const Text(
                     '利用規約',

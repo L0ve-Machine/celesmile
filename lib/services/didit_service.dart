@@ -3,8 +3,8 @@ import 'package:http/http.dart' as http;
 
 class DiditService {
   // スタンドアロンAPI用の設定（ガイド通り）
-  static const String _baseUrl = 'http://localhost:8080'; // プロキシ経由
-  static const String _apiKey = 'wpTfm090BVbZCUyLTmRn1SiuA7F-ru5kZ0i5YCJGWGAa';
+  static const String _baseUrl = 'https://celesmile-demo.duckdns.org'; // Nginx プロキシ経由
+  static const String _apiKey = 'wpTfm090BVbZCUyLTmRn1SiuA7F-ru5kZ0i5YCJGWGA';
 
   // Provider本人確認用のworkflow_id
   static const String _providerVerificationWorkflowId = '84095132-b497-4d7e-9ac9-5d9b00d78d69';

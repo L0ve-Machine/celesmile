@@ -3,13 +3,14 @@ const https = require('https');
 const crypto = require('crypto');
 
 const PORT = 8080;
-const DIDIT_API_KEY = 'wpTfm090BVbZCUyLTmRn1SiuA7F-ru5kZ0i5YCJGWGAa';
+const DIDIT_API_KEY = 'wpTfm090BVbZCUyLTmRn1SiuA7F-ru5kZ0i5YCJGWGA';
 const DIDIT_WEBHOOK_SECRET = 'apDce5rVy0Yu-PssUjuAZ9DXPXNCztAa84cgZzxf6YU';
 const DIDIT_BASE_URL = 'verification.didit.me'; // スタンドアロンAPI用
 
 // Firebase Realtime Database への状態保存（簡易実装）
 const verificationStates = {};
 const sessionProviderMapping = {}; // sessionId -> providerId のマッピング
+const shortIdToFullIdMapping = {}; // 短縮ID -> 完全なセッションID のマッピング
 
 // Webhook 署名検証関数
 function verifyWebhookSignature(req, body) {
@@ -94,6 +95,15 @@ const server = http.createServer((req, res) => {
 
         console.log(`📊 Session: ${sessionId}, Status: ${status}, Provider: ${providerId}`);
 
+        // session_url から短縮IDを抽出
+        if (data.decision && data.decision.session_url) {
+          const shortId = data.decision.session_url.split('/').pop();
+          if (shortId) {
+            shortIdToFullIdMapping[shortId] = sessionId;
+            console.log(`🔗 Mapped short ID: ${shortId} -> ${sessionId}`);
+          }
+        }
+
         // ステータスを保存（簡易実装）
         verificationStates[sessionId] = {
           status: status,
@@ -176,7 +186,14 @@ const server = http.createServer((req, res) => {
 
   // 検証状態確認エンドポイント
   if (req.url.startsWith('/verification-status/') && req.method === 'GET') {
-    const sessionId = req.url.split('/')[2];
+    let sessionId = req.url.split('/')[2];
+
+    // 短縮IDの場合は完全なIDに変換
+    if (shortIdToFullIdMapping[sessionId]) {
+      console.log(`🔄 Converting short ID ${sessionId} to full ID ${shortIdToFullIdMapping[sessionId]}`);
+      sessionId = shortIdToFullIdMapping[sessionId];
+    }
+
     const state = verificationStates[sessionId];
 
     if (state) {
@@ -184,7 +201,7 @@ const server = http.createServer((req, res) => {
       res.end(JSON.stringify(state));
     } else {
       res.writeHead(404);
-      res.end(JSON.stringify({ error: 'Session not found' }));
+      res.end(JSON.stringify({ error: 'Session not found', requested_id: sessionId }));
     }
     return;
   }

@@ -76,8 +76,11 @@ class _ProviderIncomeSummaryScreenState extends State<ProviderIncomeSummaryScree
       );
     }
 
-    // Filter completed bookings for revenue history
-    final completedBookings = _bookings.where((b) => b['status'] == 'completed').toList();
+    // Filter bookings for revenue history (confirmed and completed bookings generate revenue)
+    final completedBookings = _bookings.where((b) {
+      final status = b['status']?.toString() ?? '';
+      return status == 'confirmed' || status == 'completed';
+    }).toList();
 
     // Sort by date (newest first)
     completedBookings.sort((a, b) {

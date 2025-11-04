@@ -5,6 +5,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'screens/welcome_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/phone_verification_screen.dart';
+import 'screens/account_setup_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/profile_registration_screen.dart';
 import 'screens/payment_registration_screen.dart';
@@ -36,6 +37,7 @@ import 'screens/debug_chat_screen.dart';
 import 'screens/provider_chat_list_screen.dart';
 import 'screens/search_results_screen.dart';
 import 'screens/notification_settings_screen.dart';
+import 'screens/terms_of_service_screen.dart';
 import 'constants/colors.dart';
 import 'services/provider_database_service.dart';
 import 'config/stripe_config.dart';
@@ -84,10 +86,12 @@ class CelesmileApp extends StatelessWidget {
         '/': (context) => const WelcomeScreen(),
         '/onboarding': (context) => const OnboardingScreen(),
         '/phone-verification': (context) => const PhoneVerificationScreen(),
+        '/account-setup': (context) => const AccountSetupScreen(),
         '/profile-registration': (context) => const ProfileRegistrationScreen(),
         '/payment-registration': (context) => const PaymentRegistrationScreen(),
         '/dashboard': (context) => const DashboardScreen(),
         '/user-settings': (context) => const UserSettingsScreen(),
+        '/terms-of-service': (context) => const TermsOfServiceScreen(),
         '/poster-registration-intro': (context) =>
             const PosterRegistrationIntroScreen(),
         '/poster-registration-form': (context) =>

@@ -24,18 +24,14 @@ class _PosterRegistrationIntroScreenState extends State<PosterRegistrationIntroS
       // 仮のprovider IDを生成（実際には認証済みユーザーのIDを使用）
       final providerId = 'provider_${DateTime.now().millisecondsSinceEpoch}';
 
-      // DID-IT の verification URL（固定）
-      const verificationUrl = 'https://verify.didit.me/session/T5fAMkerjgz_';
-      const sessionId = 'T5fAMkerjgz_';
-
-      // DID-ITは検証完了後、ユーザーをリダイレクト
-      // URLパラメータに status と verificationSessionId が含まれる
+      // DID-IT の固定 verification URL（vendor_dataをURLパラメータで渡す）
+      final verificationUrl = 'https://verify.didit.me/session/NoLdqQCzM1ZK?vendor_data=$providerId';
+      const sessionId = 'NoLdqQCzM1ZK';
 
       print('✅ Verification session info');
       print('Session ID: $sessionId');
       print('Verification URL: $verificationUrl');
       print('Provider ID: $providerId');
-      print('✅ DID-IT will send webhook to backend, frontend will poll for status');
 
       setState(() {
         _isLoading = false;
@@ -122,7 +118,7 @@ class _PosterRegistrationIntroScreenState extends State<PosterRegistrationIntroS
               ),
               const SizedBox(height: 20),
               const Text(
-                'ミニモではお客様に安心して利用していただくために、利用規約・ガイドラインに基づき掲載情報の審査を行っています。',
+                'セレスマではお客様に安心して利用していただくために、利用規約・ガイドラインに基づき掲載情報の審査を行っています。',
                 style: TextStyle(
                   fontSize: 14,
                   color: AppColors.textPrimary,
@@ -161,7 +157,7 @@ class _PosterRegistrationIntroScreenState extends State<PosterRegistrationIntroS
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'ミニモに掲載できる施術',
+                      'セレスマに掲載できるサービス',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -170,7 +166,7 @@ class _PosterRegistrationIntroScreenState extends State<PosterRegistrationIntroS
                     ),
                     const SizedBox(height: 16),
                     const Text(
-                      'ミニモでは美容を目的とした施術を掲載の対象としています。\n掲載予定の施術が以下の掲載できない施術に該当していないかご確認の上、メニューの作成を行なってください。',
+                      'セレスマでは生活支援を目的としたサービスを掲載の対象としています。\n掲載予定のサービスが以下の掲載できないサービスに該当していないかご確認の上、メニューの作成を行なってください。',
                       style: TextStyle(
                         fontSize: 13,
                         color: AppColors.textPrimary,

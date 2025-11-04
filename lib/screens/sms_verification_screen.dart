@@ -78,12 +78,12 @@ class _SmsVerificationScreenState extends State<SmsVerificationScreen> {
     });
 
     if (result['success'] == true) {
-      // 認証成功 - 電話番号を保存してプロフィール登録画面へ
+      // 認証成功 - 電話番号を保存してアカウント作成画面へ
       AuthService.currentUserPhone = result['phone_number'];
 
       Navigator.pushNamedAndRemoveUntil(
         context,
-        '/profile-registration',
+        '/account-setup',
         (route) => false,
       );
     } else {

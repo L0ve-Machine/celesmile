@@ -24,11 +24,13 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
   }
 
   void _loadServices() {
+    print('🔍 Search Results - Loading with filters: $searchFilters');
     _servicesFuture = MySQLService.instance.getServices(
       category: searchFilters['category'],
       subcategory: searchFilters['subcategory'],
       location: searchFilters['location'],
       search: searchFilters['searchQuery'],
+      // No limit - show all results
     );
   }
 
@@ -110,16 +112,38 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
           }
 
           final servicesData = snapshot.data!;
+          print('🔍 Search Results - Loaded ${servicesData.length} services from MySQL');
+          for (var service in servicesData) {
+            print('  - ${service['id']}: ${service['title']} (provider: ${service['provider_id']})');
+          }
 
-          // Convert to ServiceModel for compatibility
-          final db = DatabaseService();
-          final allServices = db.filterServices();
+          // Convert MySQL data directly to ServiceModel
           final filteredServices = servicesData.map((data) {
-            return allServices.firstWhere(
-              (s) => s.id == data['id'],
-              orElse: () => allServices.first,
+            return ServiceModel(
+              id: data['id'] ?? '',
+              title: data['title'] ?? '',
+              provider: data['provider_name'] ?? 'サロン',
+              providerTitle: data['provider_title'] ?? data['category'] ?? '',
+              price: data['price'] ?? '¥0',
+              rating: data['rating']?.toString() ?? '5.0',
+              reviews: data['reviews_count']?.toString() ?? '0',
+              category: data['category'] ?? '',
+              subcategory: data['subcategory'] ?? '',
+              location: data['location'] ?? '東京都',
+              address: data['address'] ?? '',
+              date: '',
+              time: '',
+              menuItems: [],
+              totalPrice: data['price'] ?? '¥0',
+              reviewsList: [],
+              description: data['description'] ?? '',
+              providerId: data['provider_id'],
+              salonId: data['salon_id'],
+              serviceAreas: data['location'] ?? '東京都',
+              transportationFee: 0,
             );
           }).toList();
+          print('🔍 Search Results - Converted to ${filteredServices.length} ServiceModel objects');
 
           return filteredServices.isEmpty
               ? _buildEmptyState()

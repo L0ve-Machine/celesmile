@@ -70,6 +70,15 @@ class MySQLService {
     return [];
   }
 
+  // Get single service by ID
+  Future<Map<String, dynamic>?> getServiceById(String serviceId) async {
+    final response = await http.get(Uri.parse('$baseUrl/service/$serviceId'));
+    if (response.statusCode == 200) {
+      return Map<String, dynamic>.from(json.decode(response.body));
+    }
+    return null;
+  }
+
   // Create/Update salon
   Future<bool> saveSalon(Map<String, dynamic> salonData) async {
     final response = await http.post(
@@ -209,6 +218,200 @@ class MySQLService {
     } else {
       final data = json.decode(response.body);
       return {'success': false, 'error': data['error'] ?? 'Password change failed'};
+    }
+  }
+
+  // Check if review exists for a booking
+  Future<Map<String, dynamic>> checkReviewExists(String bookingId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/reviews/booking/$bookingId'),
+      );
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      }
+      return {'exists': false, 'review': null};
+    } catch (e) {
+      print('Error checking review: $e');
+      return {'exists': false, 'review': null};
+    }
+  }
+
+  // Create a new review
+  Future<bool> createReview({
+    required String bookingId,
+    required String providerId,
+    required String serviceId,
+    required String customerName,
+    required double rating,
+    required String comment,
+  }) async {
+    try {
+      final reviewId = 'REV${DateTime.now().millisecondsSinceEpoch}';
+      final response = await http.post(
+        Uri.parse('$baseUrl/reviews'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'id': reviewId,
+          'booking_id': bookingId,
+          'provider_id': providerId,
+          'service_id': serviceId,
+          'customer_name': customerName,
+          'rating': rating,
+          'comment': comment,
+        }),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Error creating review: $e');
+      throw Exception('Failed to create review: $e');
+    }
+  }
+
+  // Get reviews for a service
+  Future<List<Map<String, dynamic>>> getServiceReviews(String serviceId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/reviews/service/$serviceId'),
+      );
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        return data.cast<Map<String, dynamic>>();
+      }
+      return [];
+    } catch (e) {
+      print('Error getting service reviews: $e');
+      return [];
+    }
+  }
+
+  // Get reviews for a provider
+  Future<List<Map<String, dynamic>>> getProviderReviews(String providerId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/reviews/provider/$providerId'),
+      );
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        return data.cast<Map<String, dynamic>>();
+      }
+      return [];
+    } catch (e) {
+      print('Error getting provider reviews: $e');
+      return [];
+    }
+  }
+
+  // Create booking in MySQL
+  Future<bool> createBooking(Map<String, dynamic> bookingData) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/bookings'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode(bookingData),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Error creating booking: $e');
+      return false;
+    }
+  }
+
+  // Create revenue record in MySQL
+  Future<bool> createRevenue(Map<String, dynamic> revenueData) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/revenues'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode(revenueData),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Error creating revenue: $e');
+      return false;
+    }
+  }
+
+  // ========================================
+  // Stripe Connect Methods
+  // ========================================
+
+  // Create Stripe Connect Account
+  Future<Map<String, dynamic>> createStripeConnectAccount(String email, String providerId) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/stripe/connect/account'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'email': email,
+          'providerId': providerId,
+        }),
+      );
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      }
+      throw Exception('Failed to create Stripe Connect account');
+    } catch (e) {
+      print('Error creating Stripe Connect account: $e');
+      throw Exception('Failed to create Stripe Connect account: $e');
+    }
+  }
+
+  // Create Account Link for onboarding
+  Future<String> createStripeAccountLink(String accountId) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/stripe/connect/account-link'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'accountId': accountId,
+        }),
+      );
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return data['url'];
+      }
+      throw Exception('Failed to create account link');
+    } catch (e) {
+      print('Error creating account link: $e');
+      throw Exception('Failed to create account link: $e');
+    }
+  }
+
+  // Get Stripe Account status
+  Future<Map<String, dynamic>> getStripeAccountStatus(String accountId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/stripe/connect/account/$accountId'),
+      );
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      }
+      throw Exception('Failed to get account status');
+    } catch (e) {
+      print('Error getting account status: $e');
+      throw Exception('Failed to get account status: $e');
+    }
+  }
+
+  // Create Payment Intent with Application Fee
+  Future<Map<String, dynamic>> createPaymentIntent(int amount, String providerId) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/stripe/payment-intent'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'amount': amount,
+          'providerId': providerId,
+        }),
+      );
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      }
+      throw Exception('Failed to create payment intent');
+    } catch (e) {
+      print('Error creating payment intent: $e');
+      throw Exception('Failed to create payment intent: $e');
     }
   }
 }

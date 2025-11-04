@@ -3,6 +3,7 @@ import '../constants/colors.dart';
 import '../services/booking_history_service.dart';
 import '../services/chat_service.dart';
 import '../services/auth_service.dart';
+import '../services/mysql_service.dart';
 
 class BookingHistoryScreen extends StatefulWidget {
   const BookingHistoryScreen({super.key});
@@ -392,6 +393,87 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
                       ),
                     ],
                   ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        _showCancelDialog(booking.bookingId);
+                      },
+                      icon: const Icon(Icons.cancel_outlined, size: 18),
+                      label: const Text('予約をキャンセル'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.red,
+                        side: const BorderSide(color: Colors.red),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+
+                // Action button for completed bookings - Write review
+                if (booking.status == 'completed' && _isBookingDatePassed(booking)) ...[
+                  const SizedBox(height: 16),
+                  FutureBuilder<Map<String, dynamic>>(
+                    future: MySQLService.instance.checkReviewExists(booking.bookingId),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const SizedBox(
+                          height: 40,
+                          child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                        );
+                      }
+
+                      final reviewExists = snapshot.data?['exists'] ?? false;
+
+                      if (reviewExists) {
+                        return Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.green.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.green),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: const [
+                              Icon(Icons.check_circle, color: Colors.green, size: 18),
+                              SizedBox(width: 8),
+                              Text(
+                                'レビュー済み',
+                                style: TextStyle(
+                                  color: Colors.green,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+
+                      return SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            _showReviewDialog(booking);
+                          },
+                          icon: const Icon(Icons.rate_review, size: 18),
+                          label: const Text('レビューを書く'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.accentBlue,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            elevation: 0,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                 ],
               ],
             ),
@@ -496,6 +578,190 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  bool _isBookingDatePassed(BookingHistory booking) {
+    // Parse the date from booking.service.date (format: YYYY年MM月DD日)
+    // For now, assuming completed bookings are always in the past
+    // In a real scenario, you would parse the actual date
+    return true; // Simplification: all completed bookings are eligible for review
+  }
+
+  void _showReviewDialog(BookingHistory booking) {
+    double rating = 5.0;
+    final commentController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: const Text(
+              'レビューを書く',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Service info
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.lightBeige,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          booking.service.title,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          booking.service.provider,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Rating
+                  const Text(
+                    '評価',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(5, (index) {
+                      return GestureDetector(
+                        onTap: () {
+                          setDialogState(() {
+                            rating = (index + 1).toDouble();
+                          });
+                        },
+                        child: Icon(
+                          index < rating ? Icons.star : Icons.star_border,
+                          color: Colors.amber,
+                          size: 40,
+                        ),
+                      );
+                    }),
+                  ),
+                  const SizedBox(height: 8),
+                  Center(
+                    child: Text(
+                      rating.toStringAsFixed(1),
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primaryOrange,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Comment
+                  const Text(
+                    'コメント',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: commentController,
+                    maxLines: 4,
+                    decoration: InputDecoration(
+                      hintText: 'サービスの感想を教えてください',
+                      hintStyle: TextStyle(color: Colors.grey[400]),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: BorderSide(color: AppColors.lightGray),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8),
+                        borderSide: const BorderSide(color: AppColors.accentBlue),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('キャンセル'),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  if (commentController.text.trim().isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('コメントを入力してください')),
+                    );
+                    return;
+                  }
+
+                  try {
+                    final currentUser = AuthService.currentUser;
+                    await MySQLService.instance.createReview(
+                      bookingId: booking.bookingId,
+                      providerId: booking.service.providerId ?? '',
+                      serviceId: booking.service.id,
+                      customerName: currentUser ?? 'ゲスト',
+                      rating: rating,
+                      comment: commentController.text.trim(),
+                    );
+
+                    if (mounted) {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('レビューを投稿しました'),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+                      setState(() {}); // Refresh to show "レビュー済み"
+                    }
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('レビューの投稿に失敗しました: $e'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.accentBlue,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('投稿する'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

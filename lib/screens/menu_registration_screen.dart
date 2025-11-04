@@ -145,6 +145,11 @@ class _MenuRegistrationScreenState extends State<MenuRegistrationScreen> {
       for (var item in _menuItems) {
         final menuId = item.id ?? 'menu_${DateTime.now().millisecondsSinceEpoch}_${_menuItems.indexOf(item)}';
 
+        // Use first duration option as default duration
+        final defaultDuration = item.durationOptions.isNotEmpty
+            ? int.parse(item.durationOptions.first)
+            : 60;
+
         final menuData = {
           'id': menuId,
           'provider_id': _providerId ?? 'provider_test',
@@ -152,7 +157,7 @@ class _MenuRegistrationScreenState extends State<MenuRegistrationScreen> {
           'menu_name': item.nameController.text,
           'description': item.descriptionController.text,
           'price': int.parse(item.priceController.text),
-          'duration': int.parse(item.durationController.text),
+          'duration': defaultDuration,
           'category': item.selectedCategory ?? '',
           'service_areas': item.selectedServiceAreas.join(', '),
           'transportation_fee': int.parse(item.transportationFeeController.text),
@@ -480,29 +485,13 @@ class _MenuRegistrationScreenState extends State<MenuRegistrationScreen> {
             ),
             const SizedBox(height: 16),
 
-            // Price and Duration
-            Row(
-              children: [
-                Expanded(
-                  child: _buildTextField(
-                    controller: item.priceController,
-                    label: '料金（円）',
-                    hint: '5000',
-                    required: true,
-                    keyboardType: TextInputType.number,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _buildTextField(
-                    controller: item.durationController,
-                    label: '所要時間（分）',
-                    hint: '60',
-                    required: true,
-                    keyboardType: TextInputType.number,
-                  ),
-                ),
-              ],
+            // Price
+            _buildTextField(
+              controller: item.priceController,
+              label: '料金（円）',
+              hint: '5000',
+              required: true,
+              keyboardType: TextInputType.number,
             ),
             const SizedBox(height: 16),
 
@@ -751,7 +740,6 @@ class MenuItemData {
   bool isValid() {
     return nameController.text.isNotEmpty &&
         priceController.text.isNotEmpty &&
-        durationController.text.isNotEmpty &&
         descriptionController.text.isNotEmpty &&
         selectedServiceAreas.isNotEmpty &&
         transportationFeeController.text.isNotEmpty &&

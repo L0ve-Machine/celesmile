@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../services/didit_service.dart';
 import '../services/provider_database_service.dart';
+import '../services/auth_service.dart';
 
 class ProviderVerificationWaitingScreen extends StatefulWidget {
   final String providerId;
@@ -95,7 +96,7 @@ class _ProviderVerificationWaitingScreenState
   Future<void> _registerSessionWithBackend() async {
     try {
       final response = await http.post(
-        Uri.parse('http://localhost:8080/register-session/${widget.sessionId}'),
+        Uri.parse('https://celesmile-demo.duckdns.org/register-session/${widget.sessionId}'),
         headers: {'Content-Type': 'application/json'},
         body: json.encode({'providerId': widget.providerId}),
       ).timeout(Duration(seconds: 5));
@@ -120,7 +121,7 @@ class _ProviderVerificationWaitingScreenState
 
       try {
         final response = await http.get(
-          Uri.parse('http://localhost:8080/verification-status/${widget.sessionId}'),
+          Uri.parse('https://celesmile-demo.duckdns.org/verification-status/${widget.sessionId}'),
         ).timeout(Duration(seconds: 5));
 
         if (response.statusCode == 200) {
@@ -162,6 +163,12 @@ class _ProviderVerificationWaitingScreenState
       });
 
       print('⏳ [CALLBACK] Waiting 2 seconds before navigation...');
+
+      // ユーザーをproviderとして設定
+      AuthService.setAsProvider(widget.providerId).then((_) {
+        print('✅ User set as provider: ${widget.providerId}');
+      });
+
       // 2秒後にProvider画面に遷移
       Future.delayed(Duration(seconds: 2), () {
         if (mounted) {

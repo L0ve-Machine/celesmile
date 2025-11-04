@@ -33,9 +33,6 @@ class _ProviderHomeDashboardScreenState extends State<ProviderHomeDashboardScree
         ? providerDb.getVerification(_currentProviderId!)
         : null;
 
-    // Check if provider has registered (has verification submitted)
-    final hasRegistered = provider != null && verification != null;
-
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -64,7 +61,7 @@ class _ProviderHomeDashboardScreenState extends State<ProviderHomeDashboardScree
           ),
         ],
       ),
-      body: hasRegistered ? _buildRegisteredView(provider, verification) : _buildUnregisteredView(),
+      body: _buildRegisteredView(provider, verification),
     );
   }
 

@@ -286,20 +286,14 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
         return;
       }
 
-      // Regular user - check profile and payment info
+      // Regular user - check profile
       final profile = AuthService.currentUserProfile;
-      final paymentInfo = AuthService.currentUserPaymentInfo;
 
-      // プロフィールと決済情報がnullでない場合のみチェック
+      // プロフィールがnullでない場合のみチェック
       // nullの場合は新規ユーザーとして扱う
       if (profile != null && profile.isComplete) {
-        if (paymentInfo != null && paymentInfo.isComplete) {
-          // すべて完了済み - ダッシュボードへ
-          Navigator.pushReplacementNamed(context, '/dashboard');
-        } else {
-          // プロフィールは完了、決済情報が未完了
-          Navigator.pushReplacementNamed(context, '/payment-registration');
-        }
+        // プロフィール完了済み - ダッシュボードへ
+        Navigator.pushReplacementNamed(context, '/dashboard');
       } else {
         // プロフィールが未完了
         Navigator.pushReplacementNamed(context, '/profile-registration');

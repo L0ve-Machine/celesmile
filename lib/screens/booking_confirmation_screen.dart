@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../constants/colors.dart';
@@ -10,6 +11,7 @@ import '../services/stripe_service.dart';
 import '../services/payment_method_service.dart';
 import '../services/chat_service.dart';
 import '../services/mysql_service.dart';
+import '../services/profile_image_service.dart';
 
 class BookingConfirmationScreen extends StatefulWidget {
   const BookingConfirmationScreen({super.key});
@@ -26,6 +28,9 @@ class _BookingConfirmationScreenState
   bool _isViewOnly = false;
   final reviewsDb = ReviewsDatabaseService();
   final TextEditingController _additionalNotesController = TextEditingController();
+  Map<String, dynamic>? _providerData;
+  Map<String, dynamic>? _salonData;
+  List<String> _galleryImages = [];
 
   // Selected menu items
   List<MenuItem> _selectedMenuItems = [];
@@ -44,6 +49,15 @@ class _BookingConfirmationScreenState
   // Selected date and time
   DateTime? _selectedDate;
   String? _selectedTimeSlot;
+
+  // Customer address (default to user's address)
+  String? _selectedAddress;
+
+  // Reviews data
+  List<ServiceReview> _reviews = [];
+  bool _isLoadingReviews = true;
+  double _averageRating = 0.0;
+  int _reviewCount = 0;
 
   @override
   void dispose() {
@@ -69,14 +83,8 @@ class _BookingConfirmationScreenState
     }
 
     if (serviceId != null && !_hasInitializedMenus) {
-      final db = DatabaseService();
-      _service = db.getServiceById(serviceId);
-
-      // Initialize with first menu item selected by default (only once)
-      if (_service != null && _service!.menuItems.isNotEmpty) {
-        _selectedMenuItems = [_service!.menuItems.first];
-        _hasInitializedMenus = true;
-      }
+      // Load service from MySQL
+      _loadServiceFromMySQL(serviceId);
 
       // Initialize available points (mock data - should come from user profile)
       _availablePoints = 1200;
@@ -89,7 +97,201 @@ class _BookingConfirmationScreenState
 
       // Load saved cards
       _loadSavedCards();
+
+      // Load provider data
+      _loadProviderData();
+
+      // Load salon data
+      _loadSalonData();
+
+      // Load customer address
+      _loadCustomerAddress();
+
+      // Load reviews
+      _loadReviews(serviceId);
     }
+  }
+
+  void _loadCustomerAddress() {
+    final userProfile = AuthService.currentUserProfile;
+    if (userProfile != null) {
+      final postalCode = userProfile.postalCode ?? '';
+      final prefecture = userProfile.prefecture ?? '';
+      final city = userProfile.city ?? '';
+      final address = userProfile.address ?? '';
+      final building = userProfile.building ?? '';
+
+      if (prefecture.isNotEmpty && city.isNotEmpty && address.isNotEmpty) {
+        setState(() {
+          _selectedAddress = '〒$postalCode $prefecture$city$address${building.isNotEmpty ? " $building" : ""}';
+        });
+      }
+    }
+  }
+
+  Future<void> _loadServiceFromMySQL(String serviceId) async {
+    try {
+      final serviceData = await MySQLService.instance.getServiceById(serviceId);
+      if (serviceData != null && mounted) {
+        // Parse menu items from API response
+        List<MenuItem> menuItems = [];
+        if (serviceData['menu_items'] != null && serviceData['menu_items'] is List) {
+          for (var item in serviceData['menu_items']) {
+            menuItems.add(MenuItem(
+              name: item['name'] ?? '',
+              price: item['price'] ?? serviceData['price'] ?? '¥0',
+              duration: item['duration'] ?? '60分',
+            ));
+          }
+        }
+
+        // If no menu items, create default one
+        if (menuItems.isEmpty) {
+          menuItems.add(MenuItem(
+            name: serviceData['title'] ?? 'サービス',
+            price: serviceData['price'] ?? '¥0',
+            duration: '60分',
+          ));
+        }
+
+        setState(() {
+          _service = ServiceModel(
+            id: serviceData['id'] ?? '',
+            title: serviceData['title'] ?? '',
+            provider: serviceData['provider_name'] ?? 'サロン',
+            providerTitle: serviceData['provider_title'] ?? serviceData['category'] ?? '',
+            price: serviceData['price'] ?? '¥0',
+            rating: serviceData['rating']?.toString() ?? '5.0',
+            reviews: serviceData['reviews_count']?.toString() ?? '0',
+            category: serviceData['category'] ?? '',
+            subcategory: serviceData['subcategory'] ?? '',
+            location: serviceData['location'] ?? '東京都',
+            address: serviceData['address'] ?? '',
+            date: '',
+            time: '',
+            menuItems: menuItems,
+            totalPrice: serviceData['price'] ?? '¥0',
+            reviewsList: [],
+            description: serviceData['description'] ?? '',
+            providerId: serviceData['provider_id'],
+            salonId: serviceData['salon_id'],
+            serviceAreas: serviceData['location'] ?? '東京都',
+            transportationFee: 0,
+          );
+
+          // Initialize with first menu item selected by default (only once)
+          if (_service!.menuItems.isNotEmpty && !_hasInitializedMenus) {
+            _selectedMenuItems = [_service!.menuItems.first];
+            _hasInitializedMenus = true;
+          }
+        });
+      }
+    } catch (e) {
+      print('Error loading service from MySQL: $e');
+    }
+  }
+
+  Future<void> _loadProviderData() async {
+    if (_service?.providerId != null) {
+      try {
+        final provider = await MySQLService.instance.getProviderById(_service!.providerId!);
+        if (mounted) {
+          setState(() {
+            _providerData = provider;
+          });
+        }
+      } catch (e) {
+        print('Error loading provider data: $e');
+      }
+    }
+  }
+
+  Future<void> _loadSalonData() async {
+    if (_service?.salonId != null) {
+      try {
+        final salon = await MySQLService.instance.getSalonById(_service!.salonId!);
+        if (salon != null && mounted) {
+          setState(() {
+            _salonData = salon;
+            // Parse gallery_image_urls from JSON
+            if (salon['gallery_image_urls'] != null) {
+              if (salon['gallery_image_urls'] is List) {
+                _galleryImages = List<String>.from(salon['gallery_image_urls']);
+              } else if (salon['gallery_image_urls'] is String) {
+                try {
+                  final parsed = json.decode(salon['gallery_image_urls']);
+                  if (parsed is List) {
+                    _galleryImages = List<String>.from(parsed);
+                  }
+                } catch (e) {
+                  print('Error parsing gallery images: $e');
+                }
+              }
+            }
+          });
+        }
+      } catch (e) {
+        print('Error loading salon data: $e');
+      }
+    }
+  }
+
+  Future<void> _loadReviews(String serviceId) async {
+    try {
+      setState(() {
+        _isLoadingReviews = true;
+      });
+
+      final reviewsData = await MySQLService.instance.getServiceReviews(serviceId);
+
+      if (mounted) {
+        setState(() {
+          _reviews = reviewsData.map((reviewMap) {
+            return ServiceReview(
+              userName: reviewMap['customer_name'] ?? 'ゲスト',
+              rating: (reviewMap['rating'] is int)
+                  ? (reviewMap['rating'] as int).toDouble()
+                  : (reviewMap['rating'] as double),
+              comment: reviewMap['comment'] ?? '',
+              date: reviewMap['created_at'] != null
+                  ? _formatDate(reviewMap['created_at'])
+                  : '',
+            );
+          }).toList();
+          _averageRating = _calculateAverageRating();
+          _reviewCount = _reviews.length;
+          _isLoadingReviews = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading reviews: $e');
+      if (mounted) {
+        setState(() {
+          _reviews = [];
+          _averageRating = 0.0;
+          _reviewCount = 0;
+          _isLoadingReviews = false;
+        });
+      }
+    }
+  }
+
+  String _formatDate(String dateStr) {
+    try {
+      final date = DateTime.parse(dateStr);
+      return '${date.year}年${date.month}月${date.day}日';
+    } catch (e) {
+      return dateStr;
+    }
+  }
+
+  double _calculateAverageRating() {
+    if (_reviews.isEmpty) return 0.0;
+    double sum = 0;
+    for (var review in _reviews) {
+      sum += review.rating;
+    }
+    return sum / _reviews.length;
   }
 
   Future<void> _loadSavedCards() async {
@@ -194,14 +396,11 @@ class _BookingConfirmationScreenState
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Row(
                 children: [
-                  CircleAvatar(
-                    radius: 30,
-                    backgroundColor: AppColors.secondaryOrange.withOpacity(0.3),
-                    child: const Icon(
-                      Icons.person,
-                      color: AppColors.primaryOrange,
-                      size: 35,
-                    ),
+                  ProfileImageService().buildProfileImage(
+                    userId: _service!.providerId ?? 'test_provider_001',
+                    isProvider: true,
+                    size: 60,
+                    defaultIcon: Icons.person,
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -231,13 +430,83 @@ class _BookingConfirmationScreenState
               ),
             ),
 
+            // Gallery Images
+            if (_galleryImages.isNotEmpty) ...[
+              const SizedBox(height: 20),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'ギャラリー',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      height: 120,
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: _galleryImages.length,
+                        itemBuilder: (context, index) {
+                          return Padding(
+                            padding: EdgeInsets.only(
+                              right: index < _galleryImages.length - 1 ? 12 : 0,
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.network(
+                                _galleryImages[index],
+                                width: 160,
+                                height: 120,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Container(
+                                    width: 160,
+                                    height: 120,
+                                    color: Colors.grey[300],
+                                    child: const Center(
+                                      child: Icon(
+                                        Icons.broken_image,
+                                        color: Colors.grey,
+                                        size: 40,
+                                      ),
+                                    ),
+                                  );
+                                },
+                                loadingBuilder: (context, child, loadingProgress) {
+                                  if (loadingProgress == null) return child;
+                                  return Container(
+                                    width: 160,
+                                    height: 120,
+                                    color: Colors.grey[200],
+                                    child: const Center(
+                                      child: CircularProgressIndicator(),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
             const SizedBox(height: 24),
 
             // Location & Date/Time with edit buttons
             _buildEditableInfoSection(
               icon: Icons.location_on,
               title: '場所',
-              content: _service!.address,
+              content: _selectedAddress ?? '住所を入力してください',
               onEdit: _isViewOnly ? null : () => _showLocationEditDialog(),
             ),
 
@@ -255,44 +524,79 @@ class _BookingConfirmationScreenState
             // Reviews summary
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.amber[50],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.amber[200]!),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.star,
-                      color: Colors.amber,
-                      size: 28,
-                    ),
-                    const SizedBox(width: 8),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '${reviewsDb.getAverageRating(_service!.id).toStringAsFixed(1)} / 5.0',
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textPrimary,
+              child: _isLoadingReviews
+                  ? const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(24.0),
+                        child: CircularProgressIndicator(),
+                      ),
+                    )
+                  : _reviews.isEmpty
+                      ? Container(
+                          padding: const EdgeInsets.all(24),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[50],
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: AppColors.lightGray),
+                          ),
+                          child: Column(
+                            children: [
+                              Icon(Icons.rate_review_outlined, size: 48, color: Colors.grey[400]),
+                              const SizedBox(height: 12),
+                              Text(
+                                'レビューがありません',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.grey[600],
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                '最初のレビューを投稿してみませんか？',
+                                style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+                              ),
+                            ],
+                          ),
+                        )
+                      : Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.amber[50],
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.amber[200]!),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.star,
+                                color: Colors.amber,
+                                size: 28,
+                              ),
+                              const SizedBox(width: 8),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '${_averageRating.toStringAsFixed(1)} / 5.0',
+                                    style: const TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.textPrimary,
+                                    ),
+                                  ),
+                                  Text(
+                                    '$_reviewCount件のレビュー',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey[700],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ),
                         ),
-                        Text(
-                          '${reviewsDb.getReviewCount(_service!.id)}件のレビュー',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[700],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
             ),
 
             const SizedBox(height: 16),
@@ -357,12 +661,12 @@ class _BookingConfirmationScreenState
                   Divider(color: Colors.grey[300]),
                   const SizedBox(height: 12),
 
-                  // Subtotal
+                  // コース費用（メニュー小計）
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text(
-                        '小計',
+                        'コース費用',
                         style: TextStyle(
                           fontSize: 15,
                           color: AppColors.textPrimary,
@@ -370,6 +674,54 @@ class _BookingConfirmationScreenState
                       ),
                       Text(
                         _calculateSubtotal(),
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+
+                  // 交通費
+                  if (_service!.transportationFee > 0) ...[
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          '交通費',
+                          style: TextStyle(
+                            fontSize: 15,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        Text(
+                          '¥${_service!.transportationFee.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+
+                  // 手数料
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        '手数料',
+                        style: TextStyle(
+                          fontSize: 15,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      Text(
+                        _calculateServiceFee(),
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
@@ -494,7 +846,7 @@ class _BookingConfirmationScreenState
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            '「肩が凝っている」など、セラピストへ事前に伝えたいことがありましたらご記入ください',
+                            '「肩が凝っている」など、スタッフへ事前に伝えたいことがありましたらご記入ください',
                             style: TextStyle(
                               fontSize: 13,
                               color: Colors.grey[600],
@@ -747,7 +1099,7 @@ class _BookingConfirmationScreenState
     );
   }
 
-  String _createProviderBooking() {
+  Future<String> _createProviderBooking() async {
     final providerDb = ProviderDatabaseService();
     final userProfile = AuthService.currentUserProfile;
 
@@ -758,8 +1110,9 @@ class _BookingConfirmationScreenState
       price = int.parse(priceMatch.group(1)!.replaceAll(',', ''));
     }
 
+    final bookingId = 'booking_${DateTime.now().millisecondsSinceEpoch}';
     final booking = Booking(
-      id: 'booking_${DateTime.now().millisecondsSinceEpoch}',
+      id: bookingId,
       providerId: _service!.providerId!,
       salonId: _service!.salonId!,
       serviceId: _service!.id,
@@ -770,13 +1123,53 @@ class _BookingConfirmationScreenState
       bookingDate: _selectedDate ?? DateTime.now().add(const Duration(days: 1)), // Use selected date or default to tomorrow
       timeSlot: _selectedTimeSlot ?? _service!.time, // Use selected time slot or service default
       price: price,
-      status: 'pending',
+      status: 'confirmed',  // Changed to 'confirmed' since payment succeeded
       createdAt: DateTime.now(),
       notes: _additionalNotesController.text.isNotEmpty ? _additionalNotesController.text : null,
     );
 
+    // Add to local database
     providerDb.addBooking(booking);
     print('✅ Created provider booking: ${booking.id} for provider: ${_service!.providerId}');
+
+    // Save to MySQL database
+    try {
+      final bookingData = {
+        'id': booking.id,
+        'provider_id': booking.providerId,
+        'salon_id': booking.salonId,
+        'service_id': booking.serviceId,
+        'customer_name': booking.customerName,
+        'customer_phone': booking.customerPhone,
+        'customer_email': booking.customerEmail,
+        'service_name': booking.serviceName,
+        'booking_date': booking.bookingDate.toIso8601String(),
+        'time_slot': booking.timeSlot,
+        'price': booking.price,
+        'status': booking.status,
+        'notes': booking.notes,
+      };
+
+      await MySQLService.instance.createBooking(bookingData);
+      print('✅ Saved booking to MySQL database');
+
+      // Create revenue record
+      final revenueId = 'revenue_$bookingId';
+      final revenueData = {
+        'id': revenueId,
+        'provider_id': booking.providerId,
+        'booking_id': booking.id,
+        'amount': booking.price,
+        'date': booking.bookingDate.toIso8601String(),
+        'status': 'pending',  // Revenue starts as pending
+        'payment_method': 'クレジットカード',
+      };
+
+      await MySQLService.instance.createRevenue(revenueData);
+      print('✅ Created revenue record for booking: $bookingId');
+    } catch (e) {
+      print('❌ Error saving booking/revenue to MySQL: $e');
+    }
 
     return booking.id;
   }
@@ -836,9 +1229,10 @@ class _BookingConfirmationScreenState
       Navigator.pop(context);
 
       print('   - Stripe決済開始');
-      // 新しいカードで決済（保存済みカード機能は現在無効）
+      // 新しいカードで決済（Direct Charge with Application Fee）
       bool paymentSuccess = await StripeService.processPayment(
         amountInCents: finalAmount,
+        providerId: _service!.providerId ?? 'test_provider_001',
         currency: 'jpy',
         metadata: metadata,
       );
@@ -862,18 +1256,14 @@ class _BookingConfirmationScreenState
     }
   }
 
-  // 最終金額を計算（円 → セント単位）
+  // 最終金額を計算（円単位、決済用）
   int _calculateFinalAmountInCents() {
-    int subtotal = 0;
-    for (var item in _selectedMenuItems) {
-      final priceMatch = RegExp(r'¥([\d,]+)').firstMatch(item.price);
-      if (priceMatch != null) {
-        subtotal += int.parse(priceMatch.group(1)!.replaceAll(',', ''));
-      }
-    }
+    int subtotal = _getSubtotalAmount() + (_service?.transportationFee ?? 0);
+    int serviceFee = _getServiceFeeAmount();
+    int total = subtotal + serviceFee;
 
     // ポイント割引を適用
-    int total = subtotal - _usedPoints;
+    total = total - _usedPoints;
 
     // クーポン割引を適用
     if (_selectedCoupon != null) {
@@ -907,7 +1297,7 @@ class _BookingConfirmationScreenState
       print('   - サロンID: ${_service!.salonId}');
       if (_service!.providerId != null && _service!.salonId != null) {
         print('   - プロバイダー予約作成中');
-        bookingId = _createProviderBooking();
+        bookingId = await _createProviderBooking();
         print('   - プロバイダー予約作成完了: $bookingId');
       } else {
         print('   ⚠️ プロバイダーIDまたはサロンIDがnull');
@@ -940,6 +1330,9 @@ class _BookingConfirmationScreenState
       // 成功ダイアログを表示
       if (!mounted) return;
 
+      // Web環境かどうかをチェック
+      bool isWeb = identical(0, 0.0);
+
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -951,7 +1344,41 @@ class _BookingConfirmationScreenState
               Text('予約完了'),
             ],
           ),
-          content: const Text('決済が完了し、予約が確定しました。\n\nプロバイダーとのチャットが開始されました。'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('決済が完了し、予約が確定しました。\n\nプロバイダーとのチャットが開始されました。'),
+              if (isWeb) ...[
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.blue[50],
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blue[200]!),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(Icons.info_outline, size: 20, color: Colors.blue[700]),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Webアプリのテストモードのため、決済を簡略化しています（Web版非対応の技術のため）',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.blue[900],
+                            height: 1.4,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
           actions: [
             if (chatRoom != null)
               TextButton(
@@ -1259,6 +1686,7 @@ class _BookingConfirmationScreenState
     );
   }
 
+  // コース費用のみの小計
   String _calculateSubtotal() {
     int total = 0;
     for (var item in _selectedMenuItems) {
@@ -1270,17 +1698,45 @@ class _BookingConfirmationScreenState
     return '¥${total.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}';
   }
 
-  String _calculateFinalTotal() {
-    int subtotal = 0;
+  // コース費用の数値を取得
+  int _getSubtotalAmount() {
+    int total = 0;
     for (var item in _selectedMenuItems) {
       final priceMatch = RegExp(r'¥([\d,]+)').firstMatch(item.price);
       if (priceMatch != null) {
-        subtotal += int.parse(priceMatch.group(1)!.replaceAll(',', ''));
+        total += int.parse(priceMatch.group(1)!.replaceAll(',', ''));
       }
     }
+    return total;
+  }
+
+  // コース費用 + 交通費
+  String _calculateSubtotalWithTransportation() {
+    int total = _getSubtotalAmount() + (_service?.transportationFee ?? 0);
+    return '¥${total.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}';
+  }
+
+  // 手数料（23%）
+  String _calculateServiceFee() {
+    int subtotal = _getSubtotalAmount() + (_service?.transportationFee ?? 0);
+    int serviceFee = (subtotal * 0.23).round();
+    return '¥${serviceFee.toString().replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}';
+  }
+
+  // 手数料の数値を取得
+  int _getServiceFeeAmount() {
+    int subtotal = _getSubtotalAmount() + (_service?.transportationFee ?? 0);
+    return (subtotal * 0.23).round();
+  }
+
+  // 最終合計（コース費用 + 交通費 + 手数料 - ポイント - クーポン）
+  String _calculateFinalTotal() {
+    int subtotal = _getSubtotalAmount() + (_service?.transportationFee ?? 0);
+    int serviceFee = _getServiceFeeAmount();
+    int total = subtotal + serviceFee;
 
     // Apply points discount
-    int total = subtotal - _usedPoints;
+    total = total - _usedPoints;
 
     // Apply coupon discount
     if (_selectedCoupon != null) {
@@ -1299,15 +1755,55 @@ class _BookingConfirmationScreenState
   }
 
   void _showLocationEditDialog() {
+    final addressController = TextEditingController(text: _selectedAddress ?? '');
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('場所を編集'),
-        content: const Text('この機能は準備中です。実際にはプロバイダーの対応エリア内で場所を選択できます。'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'サービスを受ける場所を入力してください',
+              style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: addressController,
+              maxLines: 3,
+              decoration: InputDecoration(
+                hintText: '例：〒100-0001 東京都千代田区千代田1-1 マンション名 101号室',
+                hintStyle: TextStyle(fontSize: 12, color: Colors.grey[400]),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: AppColors.primaryOrange),
+                ),
+              ),
+            ),
+          ],
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('閉じる'),
+            child: const Text('キャンセル'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              setState(() {
+                _selectedAddress = addressController.text;
+              });
+              Navigator.pop(context);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryOrange,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('保存'),
           ),
         ],
       ),
@@ -1585,6 +2081,10 @@ class _DateTimeSelectionDialogState extends State<_DateTimeSelectionDialog> {
 
     try {
       final availability = await MySQLService.instance.getAvailability(widget.providerId);
+      print('📅 Loaded availability for ${widget.providerId}: ${availability.length} slots');
+      if (availability.isNotEmpty) {
+        print('📅 First slot: ${availability[0]}');
+      }
       if (mounted) {
         setState(() {
           _availabilityData = availability;
@@ -1592,7 +2092,7 @@ class _DateTimeSelectionDialogState extends State<_DateTimeSelectionDialog> {
         });
       }
     } catch (e) {
-      print('Error loading availability: $e');
+      print('❌ Error loading availability: $e');
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -1604,8 +2104,20 @@ class _DateTimeSelectionDialogState extends State<_DateTimeSelectionDialog> {
   List<String> _getAvailableTimeSlotsForDate(DateTime date) {
     final dateStr = DateFormat('yyyy-MM-dd').format(date);
     return _availabilityData
-        .where((slot) => slot['date'] == dateStr && slot['is_available'] == 1)
-        .map((slot) => slot['time_slot'] as String)
+        .where((slot) {
+          // Handle both string format (yyyy-MM-dd) and ISO format (yyyy-MM-ddT00:00:00.000Z)
+          final slotDate = slot['date'] as String;
+          final normalizedDate = slotDate.split('T')[0]; // Extract date part only
+          return normalizedDate == dateStr && slot['is_available'] == 1;
+        })
+        .map((slot) {
+          final timeSlot = slot['time_slot'] as String;
+          // Convert "09:00-10:00" format to "09:00" (just show start time)
+          if (timeSlot.contains('-')) {
+            return timeSlot.split('-')[0];
+          }
+          return timeSlot;
+        })
         .toList()
       ..sort();
   }

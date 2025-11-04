@@ -1,4 +1,8 @@
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:http/http.dart' as http;
 import '../constants/colors.dart';
 import '../services/mysql_service.dart';
 
@@ -21,6 +25,10 @@ class _SalonInfoFormScreenState extends State<SalonInfoFormScreen> {
   List<String> _selectedSubcategories = [];
   String? _selectedPrefecture;
   bool _homeVisit = false;
+  List<String> _galleryImageUrls = [];
+  List<Uint8List> _selectedImages = [];
+  final ImagePicker _picker = ImagePicker();
+  bool _isUploading = false;
 
   final List<String> _prefectures = [
     '東京都',
@@ -104,6 +112,23 @@ class _SalonInfoFormScreenState extends State<SalonInfoFormScreen> {
     try {
       final salonData = await MySQLService.instance.getSalonById(_salonId!);
       if (salonData != null && mounted) {
+        // Parse gallery_image_urls
+        List<String> imageUrls = [];
+        if (salonData['gallery_image_urls'] != null) {
+          if (salonData['gallery_image_urls'] is List) {
+            imageUrls = List<String>.from(salonData['gallery_image_urls']);
+          } else if (salonData['gallery_image_urls'] is String) {
+            try {
+              final parsed = json.decode(salonData['gallery_image_urls']);
+              if (parsed is List) {
+                imageUrls = List<String>.from(parsed);
+              }
+            } catch (e) {
+              print('Error parsing gallery images: $e');
+            }
+          }
+        }
+
         setState(() {
           _salonNameController.text = salonData['salon_name'] ?? '';
           _addressController.text = salonData['address'] ?? '';
@@ -111,6 +136,7 @@ class _SalonInfoFormScreenState extends State<SalonInfoFormScreen> {
           _descriptionController.text = salonData['description'] ?? '';
           _selectedCategory = salonData['category'];
           _selectedPrefecture = salonData['prefecture'];
+          _galleryImageUrls = imageUrls;
           _isLoading = false;
         });
       }
@@ -136,6 +162,86 @@ class _SalonInfoFormScreenState extends State<SalonInfoFormScreen> {
     super.dispose();
   }
 
+  Future<void> _pickImages() async {
+    try {
+      final List<XFile> pickedFiles = await _picker.pickMultiImage();
+
+      if (pickedFiles.isNotEmpty) {
+        // Limit to 5 images
+        final filesToAdd = pickedFiles.take(5 - _selectedImages.length).toList();
+
+        for (var file in filesToAdd) {
+          final bytes = await file.readAsBytes();
+          setState(() {
+            _selectedImages.add(bytes);
+          });
+        }
+
+        if (pickedFiles.length > filesToAdd.length) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('最大5枚までアップロードできます')),
+          );
+        }
+      }
+    } catch (e) {
+      print('Error picking images: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('画像の選択に失敗しました: $e')),
+      );
+    }
+  }
+
+  Future<List<String>> _uploadImages() async {
+    if (_selectedImages.isEmpty) {
+      return [];
+    }
+
+    setState(() {
+      _isUploading = true;
+    });
+
+    try {
+      var request = http.MultipartRequest(
+        'POST',
+        Uri.parse('https://celesmile-demo.duckdns.org/api/upload/salon-images'),
+      );
+
+      for (int i = 0; i < _selectedImages.length; i++) {
+        request.files.add(
+          http.MultipartFile.fromBytes(
+            'images',
+            _selectedImages[i],
+            filename: 'image_$i.jpg',
+          ),
+        );
+      }
+
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final imageUrls = List<String>.from(data['imageUrls']);
+
+        // Convert relative URLs to absolute URLs
+        final absoluteUrls = imageUrls.map((url) {
+          return 'https://celesmile-demo.duckdns.org$url';
+        }).toList();
+
+        return absoluteUrls;
+      } else {
+        throw Exception('Upload failed: ${response.body}');
+      }
+    } catch (e) {
+      print('Error uploading images: $e');
+      throw e;
+    } finally {
+      setState(() {
+        _isUploading = false;
+      });
+    }
+  }
+
   Future<void> _saveSalonInfo() async {
     if (_formKey.currentState!.validate()) {
       if (_selectedCategory == null) {
@@ -154,6 +260,25 @@ class _SalonInfoFormScreenState extends State<SalonInfoFormScreen> {
 
       final salonId = _salonId ?? 'salon_${DateTime.now().millisecondsSinceEpoch}';
 
+      // Upload new images first
+      List<String> newlyUploadedImageUrls = [];
+      if (_selectedImages.isNotEmpty) {
+        try {
+          newlyUploadedImageUrls = await _uploadImages();
+        } catch (e) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('画像のアップロードに失敗しました: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          return;
+        }
+      }
+
+      // Combine existing and newly uploaded image URLs
+      final allImageUrls = [..._galleryImageUrls, ...newlyUploadedImageUrls];
+
       final salonData = {
         'id': salonId,
         'provider_id': _providerId ?? 'provider_test',
@@ -163,6 +288,7 @@ class _SalonInfoFormScreenState extends State<SalonInfoFormScreen> {
         'city': _cityController.text,
         'address': _addressController.text,
         'description': _descriptionController.text,
+        'gallery_image_urls': allImageUrls.isNotEmpty ? allImageUrls : null,
       };
 
       try {
@@ -512,6 +638,166 @@ class _SalonInfoFormScreenState extends State<SalonInfoFormScreen> {
               ),
               const SizedBox(height: 32),
 
+              // Gallery Images Section
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: const [
+                      Text(
+                        'ギャラリー画像',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      Text(
+                        '最大5枚',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'サロンの雰囲気や施術例などの画像を選択してください',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Existing images preview (already uploaded)
+                  if (_galleryImageUrls.isNotEmpty)
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: List.generate(_galleryImageUrls.length, (index) {
+                        return Stack(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.network(
+                                _galleryImageUrls[index],
+                                width: 100,
+                                height: 100,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Container(
+                                    width: 100,
+                                    height: 100,
+                                    color: Colors.grey[300],
+                                    child: const Icon(Icons.broken_image, color: Colors.grey),
+                                  );
+                                },
+                              ),
+                            ),
+                            Positioned(
+                              top: 4,
+                              right: 4,
+                              child: GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    _galleryImageUrls.removeAt(index);
+                                  });
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.red,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.close,
+                                    color: Colors.white,
+                                    size: 16,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      }),
+                    ),
+
+                  if (_galleryImageUrls.isNotEmpty && _selectedImages.isNotEmpty)
+                    const SizedBox(height: 12),
+
+                  // New selected images preview (not yet uploaded)
+                  if (_selectedImages.isNotEmpty)
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: List.generate(_selectedImages.length, (index) {
+                        return Stack(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.memory(
+                                _selectedImages[index],
+                                width: 100,
+                                height: 100,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                            Positioned(
+                              top: 4,
+                              right: 4,
+                              child: GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    _selectedImages.removeAt(index);
+                                  });
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.red,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.close,
+                                    color: Colors.white,
+                                    size: 16,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      }),
+                    ),
+
+                  if (_selectedImages.isNotEmpty || _galleryImageUrls.isNotEmpty)
+                    const SizedBox(height: 16),
+
+                  // Add images button
+                  if ((_selectedImages.length + _galleryImageUrls.length) < 5)
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _pickImages,
+                        icon: const Icon(Icons.add_photo_alternate, size: 18),
+                        label: Text(_selectedImages.isEmpty ? '画像を選択' : '画像を追加'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.accentBlue,
+                          side: const BorderSide(color: AppColors.accentBlue),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 32),
+
               // Info box
               Container(
                 padding: const EdgeInsets.all(16),
@@ -557,7 +843,7 @@ class _SalonInfoFormScreenState extends State<SalonInfoFormScreen> {
             ],
           ),
           child: ElevatedButton(
-            onPressed: _saveSalonInfo,
+            onPressed: _isUploading ? null : _saveSalonInfo,
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primaryOrange,
               padding: const EdgeInsets.symmetric(vertical: 16),
@@ -566,14 +852,23 @@ class _SalonInfoFormScreenState extends State<SalonInfoFormScreen> {
               ),
               elevation: 0,
             ),
-            child: Text(
-              _isEditMode ? '更新する' : '保存して次へ',
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: Colors.white,
-              ),
-            ),
+            child: _isUploading
+                ? const SizedBox(
+                    height: 20,
+                    width: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : Text(
+                    _isEditMode ? '更新する' : '保存して次へ',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
           ),
         ),
       ),

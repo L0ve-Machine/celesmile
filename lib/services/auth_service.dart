@@ -107,6 +107,9 @@ class AuthService {
   // 電話番号認証用の一時保存
   static String? currentUserPhone;
 
+  // 新規登録用の一時保存されたアカウント情報
+  static Map<String, String> _pendingAccounts = {};
+
   // Initialize test user data
   static bool _initialized = false;
 
@@ -167,31 +170,28 @@ class AuthService {
     // Initialize test users on first login attempt
     _initializeTestUsers();
 
-    // For provider users (those with mapped provider IDs), use MySQL API
-    if (_userProviderIds.containsKey(username)) {
-      try {
-        final providerId = _userProviderIds[username]!;
-        // Get provider from database to verify credentials
-        final provider = await MySQLService.instance.getProviderById(providerId);
-        if (provider != null && provider['password'] == password) {
-          _currentUser = username;
-          // SharedPreferencesからデータを読み込み
-          await _loadUserData(username);
-          return true;
-        }
-        return false;
-      } catch (e) {
-        print('Provider login error: $e');
-        return false;
-      }
-    }
-
     // For regular users, use hardcoded credentials
     if (_users.containsKey(username)) {
       if (_users[username] == password) {
         _currentUser = username;
         // SharedPreferencesからデータを読み込み
         await _loadUserData(username);
+        await loadProviderStatus();
+
+        // If user has a provider ID, try to load from MySQL
+        if (_userProviderIds.containsKey(username)) {
+          try {
+            final providerId = _userProviderIds[username]!;
+            final provider = await MySQLService.instance.getProviderById(providerId);
+            if (provider != null) {
+              print('✅ Provider data loaded from MySQL: $providerId');
+            }
+          } catch (e) {
+            print('⚠️ Provider data not in MySQL yet: $e');
+            // Continue with login even if provider data is not in MySQL yet
+          }
+        }
+
         return true;
       }
     }
@@ -255,5 +255,103 @@ class AuthService {
   static bool get isProvider {
     if (_currentUser == null) return false;
     return _userProviderIds.containsKey(_currentUser);
+  }
+
+  // Set user as provider (called after DIDIT approval)
+  static Future<void> setAsProvider(String providerId) async {
+    if (_currentUser != null) {
+      _userProviderIds[_currentUser!] = providerId;
+      // Save to SharedPreferences
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('provider_id_$_currentUser', providerId);
+      print('✅ User $_currentUser set as provider with ID: $providerId');
+    }
+  }
+
+  // Load provider status from SharedPreferences
+  static Future<void> loadProviderStatus() async {
+    if (_currentUser != null) {
+      final prefs = await SharedPreferences.getInstance();
+      final providerId = prefs.getString('provider_id_$_currentUser');
+      if (providerId != null) {
+        _userProviderIds[_currentUser!] = providerId;
+        print('✅ Loaded provider status for $_currentUser: $providerId');
+      }
+    }
+  }
+
+  // アカウント作成（SMS認証後）
+  static Future<Map<String, dynamic>> createAccount(
+      String username, String password) async {
+    // ユーザー名が既に存在するかチェック
+    if (_users.containsKey(username)) {
+      return {
+        'success': false,
+        'error': 'このユーザー名は既に使用されています',
+      };
+    }
+
+    // バリデーション
+    if (username.length < 4) {
+      return {
+        'success': false,
+        'error': 'ユーザー名は4文字以上で入力してください',
+      };
+    }
+
+    if (password.length < 8) {
+      return {
+        'success': false,
+        'error': 'パスワードは8文字以上で設定してください',
+      };
+    }
+
+    try {
+      // 新しいアカウントを作成
+      _users[username] = password;
+
+      // SharedPreferencesに保存
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('username_$username', password);
+
+      // 自動ログイン
+      _currentUser = username;
+      print('✅ Account created and logged in: $username');
+
+      // 電話番号が認証されていれば、プロフィールに設定
+      if (currentUserPhone != null) {
+        final profile = UserProfile()..phone = currentUserPhone;
+        _profiles[username] = profile;
+        await prefs.setString('profile_$username', jsonEncode(profile.toJson()));
+      }
+
+      return {
+        'success': true,
+        'username': username,
+      };
+    } catch (e) {
+      print('❌ Error creating account: $e');
+      return {
+        'success': false,
+        'error': 'アカウント作成中にエラーが発生しました',
+      };
+    }
+  }
+
+  // アカウントを読み込み（アプリ起動時）
+  static Future<void> loadAccounts() async {
+    final prefs = await SharedPreferences.getInstance();
+    final keys = prefs.getKeys();
+
+    for (var key in keys) {
+      if (key.startsWith('username_')) {
+        final username = key.substring('username_'.length);
+        final password = prefs.getString(key);
+        if (password != null) {
+          _users[username] = password;
+        }
+      }
+    }
+    print('✅ Loaded ${_users.length} accounts from storage');
   }
 }
