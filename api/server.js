@@ -7,14 +7,199 @@ const fs = require('fs');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
+const rateLimit = require('express-rate-limit');
+const slowDown = require('express-slow-down');
 require('dotenv').config();
 
 // Initialize Stripe
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 const app = express();
-app.use(cors());
+
+// Strict CORS configuration
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
+
+    const allowedOrigins = [
+      'https://celesmile.didit.me',
+      'http://localhost:3000',
+      'http://localhost:8080',
+      process.env.FRONTEND_URL
+    ].filter(Boolean);
+
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.warn(`🚫 CORS blocked origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  optionsSuccessStatus: 200,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
+
+// ========================================
+// Rate Limiting & Security System
+// ========================================
+
+// In-memory stores for tracking failures
+// In production, use Redis for distributed systems
+const loginAttempts = new Map(); // Track login attempts by IP
+const blockedDevices = new Map(); // Track blocked devices by IP
+const lockedAccounts = new Map(); // Track locked accounts by email
+
+// Configuration
+const RATE_LIMIT_CONFIG = {
+  MAX_LOGIN_ATTEMPTS: 5,           // Max failed attempts before account lock
+  DEVICE_BLOCK_THRESHOLD: 10,      // Max failed attempts before device block
+  ACCOUNT_LOCK_DURATION: 15 * 60 * 1000,  // 15 minutes
+  DEVICE_BLOCK_DURATION: 60 * 60 * 1000,  // 1 hour
+  ATTEMPT_WINDOW: 15 * 60 * 1000   // 15 minute window
+};
+
+// Helper function to get client identifier (IP + User-Agent)
+const getClientId = (req) => {
+  const ip = req.ip || req.connection.remoteAddress;
+  const userAgent = req.headers['user-agent'] || 'unknown';
+  return `${ip}:${userAgent}`;
+};
+
+// Helper function to check if device is blocked
+const isDeviceBlocked = (clientId) => {
+  const blockInfo = blockedDevices.get(clientId);
+  if (!blockInfo) return false;
+
+  const now = Date.now();
+  if (now > blockInfo.blockedUntil) {
+    blockedDevices.delete(clientId);
+    return false;
+  }
+
+  return true;
+};
+
+// Helper function to check if account is locked
+const isAccountLocked = (email) => {
+  const lockInfo = lockedAccounts.get(email);
+  if (!lockInfo) return false;
+
+  const now = Date.now();
+  if (now > lockInfo.lockedUntil) {
+    lockedAccounts.delete(email);
+    return false;
+  }
+
+  return true;
+};
+
+// Helper function to record login attempt
+const recordLoginAttempt = (clientId, email, success) => {
+  const now = Date.now();
+
+  if (success) {
+    // Clear attempts on successful login
+    loginAttempts.delete(`${clientId}:${email}`);
+    return;
+  }
+
+  // Record failed attempt
+  const key = `${clientId}:${email}`;
+  const attempts = loginAttempts.get(key) || [];
+
+  // Remove old attempts outside the window
+  const recentAttempts = attempts.filter(
+    timestamp => now - timestamp < RATE_LIMIT_CONFIG.ATTEMPT_WINDOW
+  );
+
+  recentAttempts.push(now);
+  loginAttempts.set(key, recentAttempts);
+
+  // Check for account lock
+  if (recentAttempts.length >= RATE_LIMIT_CONFIG.MAX_LOGIN_ATTEMPTS) {
+    lockedAccounts.set(email, {
+      lockedUntil: now + RATE_LIMIT_CONFIG.ACCOUNT_LOCK_DURATION,
+      attempts: recentAttempts.length
+    });
+    console.warn(`🔒 Account locked: ${email} (${recentAttempts.length} failed attempts)`);
+  }
+
+  // Check for device block (count all attempts from this client)
+  const allClientAttempts = Array.from(loginAttempts.entries())
+    .filter(([k]) => k.startsWith(clientId))
+    .flatMap(([, v]) => v)
+    .filter(timestamp => now - timestamp < RATE_LIMIT_CONFIG.ATTEMPT_WINDOW);
+
+  if (allClientAttempts.length >= RATE_LIMIT_CONFIG.DEVICE_BLOCK_THRESHOLD) {
+    blockedDevices.set(clientId, {
+      blockedUntil: now + RATE_LIMIT_CONFIG.DEVICE_BLOCK_DURATION,
+      attempts: allClientAttempts.length
+    });
+    console.warn(`🚫 Device blocked: ${clientId} (${allClientAttempts.length} failed attempts)`);
+  }
+};
+
+// Middleware to check device blocking
+const checkDeviceBlock = (req, res, next) => {
+  const clientId = getClientId(req);
+
+  if (isDeviceBlocked(clientId)) {
+    const blockInfo = blockedDevices.get(clientId);
+    const remainingTime = Math.ceil((blockInfo.blockedUntil - Date.now()) / 1000 / 60);
+
+    console.warn(`🚫 Blocked device attempted access: ${clientId}`);
+    return res.status(429).json({
+      error: 'Device temporarily blocked due to suspicious activity',
+      type: 'DEVICE_BLOCKED',
+      remainingMinutes: remainingTime,
+      message: `Your device has been temporarily blocked. Please try again in ${remainingTime} minutes.`
+    });
+  }
+
+  next();
+};
+
+// General API rate limiter (prevents DoS)
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  message: {
+    error: 'Too many requests from this IP, please try again later.',
+    type: 'RATE_LIMIT_EXCEEDED'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Strict limiter for authentication endpoints
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // Limit each IP to 10 requests per windowMs
+  skipSuccessfulRequests: false,
+  message: {
+    error: 'Too many authentication attempts, please try again later.',
+    type: 'AUTH_RATE_LIMIT_EXCEEDED'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Speed limiter for authentication (slows down repeated requests)
+const authSpeedLimiter = slowDown({
+  windowMs: 15 * 60 * 1000,
+  delayAfter: 3, // Allow 3 requests per windowMs at full speed
+  delayMs: (used, req) => (used - 3) * 500, // Incremental delay
+  maxDelayMs: 5000, // Maximum delay of 5 seconds
+});
+
+// Apply general rate limiting to all routes
+app.use(generalLimiter);
 
 // JWT Authentication Middleware
 const authenticateToken = (req, res, next) => {
@@ -559,6 +744,9 @@ app.get('/api/providers/:providerId', authenticateToken, async (req, res) => {
 
 // Provider login
 app.post('/api/login', [
+  checkDeviceBlock,
+  authLimiter,
+  authSpeedLimiter,
   body('email').isEmail().normalizeEmail(),
   body('password').notEmpty()
 ], async (req, res) => {
@@ -570,6 +758,22 @@ app.post('/api/login', [
     }
 
     const { email, password } = req.body;
+    const clientId = getClientId(req);
+
+    // Check if account is locked
+    if (isAccountLocked(email)) {
+      const lockInfo = lockedAccounts.get(email);
+      const remainingTime = Math.ceil((lockInfo.lockedUntil - Date.now()) / 1000 / 60);
+
+      console.warn(`🔒 Login attempt to locked account: ${email}`);
+      return res.status(423).json({
+        success: false,
+        error: 'Account temporarily locked',
+        type: 'ACCOUNT_LOCKED',
+        remainingMinutes: remainingTime,
+        message: `This account has been temporarily locked due to multiple failed login attempts. Please try again in ${remainingTime} minutes.`
+      });
+    }
 
     // Get provider by email
     const [rows] = await pool.query(
@@ -578,7 +782,18 @@ app.post('/api/login', [
     );
 
     if (rows.length === 0) {
-      return res.status(401).json({ success: false, error: 'Invalid credentials' });
+      // Record failed attempt
+      recordLoginAttempt(clientId, email, false);
+
+      // Get remaining attempts
+      const attempts = loginAttempts.get(`${clientId}:${email}`) || [];
+      const remaining = RATE_LIMIT_CONFIG.MAX_LOGIN_ATTEMPTS - attempts.length;
+
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid credentials',
+        remainingAttempts: Math.max(0, remaining)
+      });
     }
 
     const provider = rows[0];
@@ -587,8 +802,24 @@ app.post('/api/login', [
     const passwordMatch = await bcrypt.compare(password, provider.password);
 
     if (!passwordMatch) {
-      return res.status(401).json({ success: false, error: 'Invalid credentials' });
+      // Record failed attempt
+      recordLoginAttempt(clientId, email, false);
+
+      // Get remaining attempts
+      const attempts = loginAttempts.get(`${clientId}:${email}`) || [];
+      const remaining = RATE_LIMIT_CONFIG.MAX_LOGIN_ATTEMPTS - attempts.length;
+
+      console.warn(`❌ Failed login attempt for ${email} from ${clientId} (${attempts.length} total attempts)`);
+
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid credentials',
+        remainingAttempts: Math.max(0, remaining)
+      });
     }
+
+    // Successful login - clear attempts
+    recordLoginAttempt(clientId, email, true);
 
     // Generate JWT token
     const token = jwt.sign(
@@ -603,6 +834,8 @@ app.post('/api/login', [
 
     // Remove password from response
     const { password: _, ...providerWithoutPassword } = provider;
+
+    console.log(`✅ Successful login: ${email}`);
 
     res.json({
       success: true,
