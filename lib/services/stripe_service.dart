@@ -138,17 +138,17 @@ class StripeService {
       }
 
       // 2. PaymentMethodを使用してPaymentIntentを確認
-      // 注: 本番環境ではバックエンドで実装すべきです
-      final url = Uri.parse('${StripeConfig.stripeApiUrl}/payment_intents/${paymentIntentData['id']}/confirm');
+      // NOTE: This should be done via backend API, not directly from client
+      final url = Uri.parse('/api/stripe/confirm-payment-intent');
       final response = await http.post(
         url,
         headers: {
-          'Authorization': 'Bearer ${StripeConfig.secretKey}',
-          'Content-Type': 'application/x-www-form-urlencoded',
+          'Content-Type': 'application/json',
         },
-        body: {
+        body: json.encode({
+          'payment_intent_id': paymentIntentData['id'],
           'payment_method': paymentMethodId,
-        },
+        }),
       );
 
       if (response.statusCode == 200) {
@@ -192,15 +192,12 @@ class StripeService {
   // SetupIntentを作成（カード情報を保存するため）
   static Future<Map<String, dynamic>> createSetupIntent() async {
     try {
-      final url = Uri.parse('${StripeConfig.stripeApiUrl}/setup_intents');
+      // Use backend API instead of calling Stripe directly
+      final url = Uri.parse('/api/stripe/setup-intent');
       final response = await http.post(
         url,
         headers: {
-          'Authorization': 'Bearer ${StripeConfig.secretKey}',
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: {
-          'payment_method_types[]': 'card',
+          'Content-Type': 'application/json',
         },
       );
 
@@ -238,17 +235,12 @@ class StripeService {
       await Stripe.instance.presentPaymentSheet();
 
       // 4. SetupIntentを取得してPaymentMethod IDを取得
-      // 注: 本番環境ではバックエンドで実装すべき
+      // Use backend API instead of calling Stripe directly
       final setupIntentId = setupIntent['id'] as String?;
       if (setupIntentId != null) {
         // SetupIntentからPaymentMethod IDを取得
-        final url = Uri.parse('${StripeConfig.stripeApiUrl}/setup_intents/$setupIntentId');
-        final response = await http.get(
-          url,
-          headers: {
-            'Authorization': 'Bearer ${StripeConfig.secretKey}',
-          },
-        );
+        final url = Uri.parse('/api/stripe/setup-intent/$setupIntentId');
+        final response = await http.get(url);
 
         if (response.statusCode == 200) {
           final result = json.decode(response.body);

@@ -6,12 +6,7 @@ class StripeConfig {
   static String get publishableKey =>
     dotenv.env['STRIPE_PUBLISHABLE_KEY'] ?? 'pk_test_dummy_key';
 
-  // Secret key (シークレットキー - サーバー側で使用)
-  // 注意: 本番環境ではこのキーをクライアント側に含めないでください
-  // バックエンドサーバーで管理するべきです
-  static String get secretKey =>
-    dotenv.env['STRIPE_SECRET_KEY'] ?? 'sk_test_dummy_key';
-
-  // Stripe API base URL
-  static const String stripeApiUrl = 'https://api.stripe.com/v1';
+  // SECURITY NOTE: Secret key is ONLY stored on the backend server
+  // Never include Stripe secret key in client-side code
+  // All sensitive Stripe operations are handled via backend API endpoints
 }

@@ -4,6 +4,9 @@ const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+const { body, validationResult } = require('express-validator');
 require('dotenv').config();
 
 // Initialize Stripe
@@ -12,6 +15,39 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// JWT Authentication Middleware
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).json({ error: 'Access token required' });
+  }
+
+  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+    if (err) {
+      return res.status(403).json({ error: 'Invalid or expired token' });
+    }
+    req.user = user;
+    next();
+  });
+};
+
+// Optional authentication middleware (doesn't fail if no token)
+const optionalAuth = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (token) {
+    jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+      if (!err) {
+        req.user = user;
+      }
+    });
+  }
+  next();
+};
 
 // Configure multer for profile image uploads
 const storage = multer.diskStorage({
@@ -92,20 +128,30 @@ const pool = mysql.createPool({
 });
 
 // Get bookings by provider
-app.get('/api/bookings/:providerId', async (req, res) => {
+app.get('/api/bookings/:providerId', authenticateToken, async (req, res) => {
   try {
+    // Check if user is authorized to access this provider's data
+    if (req.user.id !== req.params.providerId && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
     const [rows] = await pool.query(
       'SELECT * FROM bookings WHERE provider_id = ? ORDER BY booking_date DESC',
       [req.params.providerId]
     );
     res.json(rows);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Error fetching bookings:', error);
+    res.status(500).json({ error: 'Failed to fetch bookings' });
   }
 });
 
 // Get revenue summary
-app.get('/api/revenue-summary/:providerId', async (req, res) => {
+app.get('/api/revenue-summary/:providerId', authenticateToken, async (req, res) => {
+  // Check authorization
+  if (req.user.id !== req.params.providerId && req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Not authorized' });
+  }
   try {
     const now = new Date();
     const currentYear = now.getFullYear();
@@ -138,7 +184,11 @@ app.get('/api/revenue-summary/:providerId', async (req, res) => {
 });
 
 // Get salons by provider
-app.get('/api/salons/:providerId', async (req, res) => {
+app.get('/api/salons/:providerId', authenticateToken, async (req, res) => {
+  // Check authorization
+  if (req.user.id !== req.params.providerId && req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Not authorized' });
+  }
   try {
     const [rows] = await pool.query(
       'SELECT * FROM salons WHERE provider_id = ?',
@@ -259,7 +309,7 @@ app.get('/api/service/:id', async (req, res) => {
 });
 
 // Create/Update salon
-app.post('/api/salons', async (req, res) => {
+app.post('/api/salons', authenticateToken, async (req, res) => {
   try {
     const { id, provider_id, salon_name, category, prefecture, city, address, description, gallery_image_urls } = req.body;
 
@@ -281,7 +331,7 @@ app.post('/api/salons', async (req, res) => {
 });
 
 // Delete salon
-app.delete('/api/salons/:salonId', async (req, res) => {
+app.delete('/api/salons/:salonId', authenticateToken, async (req, res) => {
   try {
     await pool.query('DELETE FROM salons WHERE id = ?', [req.params.salonId]);
     res.json({ success: true });
@@ -291,7 +341,11 @@ app.delete('/api/salons/:salonId', async (req, res) => {
 });
 
 // Get availability calendar
-app.get('/api/availability/:providerId', async (req, res) => {
+app.get('/api/availability/:providerId', authenticateToken, async (req, res) => {
+  // Check authorization
+  if (req.user.id !== req.params.providerId && req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Not authorized' });
+  }
   try {
     const { date } = req.query;
     let query = 'SELECT * FROM availability_calendar WHERE provider_id = ?';
@@ -311,7 +365,7 @@ app.get('/api/availability/:providerId', async (req, res) => {
 });
 
 // Update availability
-app.post('/api/availability', async (req, res) => {
+app.post('/api/availability', authenticateToken, async (req, res) => {
   try {
     const { id, provider_id, date, time_slot, is_available } = req.body;
     console.log('POST /api/availability - Request body:', req.body);
@@ -328,7 +382,11 @@ app.post('/api/availability', async (req, res) => {
 });
 
 // Get chats for provider
-app.get('/api/chats/:providerId', async (req, res) => {
+app.get('/api/chats/:providerId', authenticateToken, async (req, res) => {
+  // Check authorization
+  if (req.user.id !== req.params.providerId && req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Not authorized' });
+  }
   try {
     const [rows] = await pool.query(
       'SELECT * FROM chats WHERE provider_id = ? ORDER BY created_at DESC',
@@ -416,7 +474,7 @@ app.post('/api/revenues', async (req, res) => {
 });
 
 // Get menus by salon
-app.get('/api/menus/:salonId', async (req, res) => {
+app.get('/api/menus/:salonId', authenticateToken, async (req, res) => {
   try {
     const [rows] = await pool.query(
       'SELECT * FROM service_menus WHERE salon_id = ? ORDER BY created_at DESC',
@@ -429,7 +487,7 @@ app.get('/api/menus/:salonId', async (req, res) => {
 });
 
 // Create/Update menu
-app.post('/api/menus', async (req, res) => {
+app.post('/api/menus', authenticateToken, async (req, res) => {
   try {
     const { id, provider_id, salon_id, menu_name, description, price, duration, category, service_areas, transportation_fee, duration_options, optional_services } = req.body;
 
@@ -465,7 +523,7 @@ app.post('/api/menus', async (req, res) => {
 });
 
 // Delete menu
-app.delete('/api/menus/:menuId', async (req, res) => {
+app.delete('/api/menus/:menuId', authenticateToken, async (req, res) => {
   try {
     await pool.query('DELETE FROM service_menus WHERE id = ?', [req.params.menuId]);
     // Also delete from services table
@@ -479,7 +537,11 @@ app.delete('/api/menus/:menuId', async (req, res) => {
 });
 
 // Get provider by ID
-app.get('/api/providers/:providerId', async (req, res) => {
+app.get('/api/providers/:providerId', authenticateToken, async (req, res) => {
+  // Check authorization
+  if (req.user.id !== req.params.providerId && req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Not authorized' });
+  }
   try {
     const [rows] = await pool.query(
       'SELECT * FROM providers WHERE id = ?',
@@ -496,20 +558,60 @@ app.get('/api/providers/:providerId', async (req, res) => {
 });
 
 // Provider login
-app.post('/api/login', async (req, res) => {
+app.post('/api/login', [
+  body('email').isEmail().normalizeEmail(),
+  body('password').notEmpty()
+], async (req, res) => {
   try {
-    const { email, password } = req.body;
-    const [rows] = await pool.query(
-      'SELECT * FROM providers WHERE email = ? AND password = ?',
-      [email, password]
-    );
-    if (rows.length > 0) {
-      res.json({ success: true, provider: rows[0] });
-    } else {
-      res.status(401).json({ success: false, error: 'Invalid credentials' });
+    // Validate input
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, errors: errors.array() });
     }
+
+    const { email, password } = req.body;
+
+    // Get provider by email
+    const [rows] = await pool.query(
+      'SELECT * FROM providers WHERE email = ?',
+      [email]
+    );
+
+    if (rows.length === 0) {
+      return res.status(401).json({ success: false, error: 'Invalid credentials' });
+    }
+
+    const provider = rows[0];
+
+    // Compare password with hashed password
+    const passwordMatch = await bcrypt.compare(password, provider.password);
+
+    if (!passwordMatch) {
+      return res.status(401).json({ success: false, error: 'Invalid credentials' });
+    }
+
+    // Generate JWT token
+    const token = jwt.sign(
+      {
+        id: provider.id,
+        email: provider.email,
+        role: 'provider'
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    // Remove password from response
+    const { password: _, ...providerWithoutPassword } = provider;
+
+    res.json({
+      success: true,
+      provider: providerWithoutPassword,
+      token: token
+    });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Login error:', error);
+    res.status(500).json({ success: false, error: 'Login failed' });
   }
 });
 
@@ -530,7 +632,11 @@ app.post('/api/upload/profile-image', upload.single('image'), async (req, res) =
 });
 
 // Update provider profile
-app.patch('/api/providers/:providerId', async (req, res) => {
+app.patch('/api/providers/:providerId', authenticateToken, async (req, res) => {
+  // Check authorization
+  if (req.user.id !== req.params.providerId && req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Not authorized' });
+  }
   try {
     console.log('PATCH /api/providers/:providerId - Request body:', req.body);
     console.log('Provider ID:', req.params.providerId);
@@ -548,35 +654,59 @@ app.patch('/api/providers/:providerId', async (req, res) => {
 });
 
 // Change provider password
-app.patch('/api/providers/:providerId/password', async (req, res) => {
+app.patch('/api/providers/:providerId/password', [
+  authenticateToken,
+  body('current_password').notEmpty(),
+  body('new_password').isLength({ min: 8 })
+], async (req, res) => {
   try {
+    // Validate input
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, errors: errors.array() });
+    }
+
+    // Check if user is authorized to change this password
+    if (req.user.id !== req.params.providerId) {
+      return res.status(403).json({ success: false, error: 'Not authorized' });
+    }
+
     console.log('PATCH /api/providers/:providerId/password - Request body:', req.body);
     console.log('Provider ID:', req.params.providerId);
     const { current_password, new_password } = req.body;
 
-    // Verify current password
+    // Get current password hash
     const [rows] = await pool.query(
-      'SELECT * FROM providers WHERE id = ? AND password = ?',
-      [req.params.providerId, current_password]
+      'SELECT password FROM providers WHERE id = ?',
+      [req.params.providerId]
     );
 
     if (rows.length === 0) {
-      console.log('PATCH /api/providers/:providerId/password - Current password incorrect');
-      res.status(401).json({ success: false, error: 'Current password is incorrect' });
-      return;
+      return res.status(404).json({ success: false, error: 'Provider not found' });
     }
+
+    // Verify current password
+    const passwordMatch = await bcrypt.compare(current_password, rows[0].password);
+
+    if (!passwordMatch) {
+      console.log('PATCH /api/providers/:providerId/password - Current password incorrect');
+      return res.status(401).json({ success: false, error: 'Current password is incorrect' });
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(new_password, 10);
 
     // Update password
     await pool.query(
       'UPDATE providers SET password = ? WHERE id = ?',
-      [new_password, req.params.providerId]
+      [hashedPassword, req.params.providerId]
     );
 
     console.log('PATCH /api/providers/:providerId/password - Success');
     res.json({ success: true });
   } catch (error) {
     console.error('PATCH /api/providers/:providerId/password - Error:', error.message);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ success: false, error: 'Password change failed' });
   }
 });
 
@@ -653,7 +783,7 @@ app.get('/api/reviews/booking/:bookingId', async (req, res) => {
 // ========================================
 
 // Create Stripe Connect Account for Provider
-app.post('/api/stripe/connect/account', async (req, res) => {
+app.post('/api/stripe/connect/account', authenticateToken, async (req, res) => {
   try {
     const { email, providerId } = req.body;
 
@@ -694,7 +824,7 @@ app.post('/api/stripe/connect/account', async (req, res) => {
 });
 
 // Create Account Link for onboarding
-app.post('/api/stripe/connect/account-link', async (req, res) => {
+app.post('/api/stripe/connect/account-link', authenticateToken, async (req, res) => {
   try {
     const { accountId } = req.body;
 
@@ -713,7 +843,7 @@ app.post('/api/stripe/connect/account-link', async (req, res) => {
 });
 
 // Get Stripe Account status
-app.get('/api/stripe/connect/account/:accountId', async (req, res) => {
+app.get('/api/stripe/connect/account/:accountId', authenticateToken, async (req, res) => {
   try {
     const account = await stripe.accounts.retrieve(req.params.accountId);
 
