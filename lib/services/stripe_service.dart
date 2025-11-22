@@ -1,10 +1,14 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_stripe/flutter_stripe.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import '../config/stripe_config.dart';
 
 class StripeService {
+  // Get base URL from environment
+  static String get _baseUrl => '${dotenv.env['API_BASE_URL'] ?? 'https://celesmile-demo.duckdns.org'}/api';
+
   // PaymentIntentを作成（Direct Charge with Application Fee）
   static Future<Map<String, dynamic>> createPaymentIntent({
     required int amount,
@@ -14,7 +18,7 @@ class StripeService {
   }) async {
     try {
       // Use backend API for Direct Charge
-      final url = Uri.parse('/api/stripe/payment-intent');
+      final url = Uri.parse('$_baseUrl/stripe/payment-intent');
 
       final response = await http.post(
         url,
@@ -139,7 +143,7 @@ class StripeService {
 
       // 2. PaymentMethodを使用してPaymentIntentを確認
       // NOTE: This should be done via backend API, not directly from client
-      final url = Uri.parse('/api/stripe/confirm-payment-intent');
+      final url = Uri.parse('$_baseUrl/stripe/confirm-payment-intent');
       final response = await http.post(
         url,
         headers: {
@@ -193,7 +197,7 @@ class StripeService {
   static Future<Map<String, dynamic>> createSetupIntent() async {
     try {
       // Use backend API instead of calling Stripe directly
-      final url = Uri.parse('/api/stripe/setup-intent');
+      final url = Uri.parse('$_baseUrl/stripe/setup-intent');
       final response = await http.post(
         url,
         headers: {
@@ -239,7 +243,7 @@ class StripeService {
       final setupIntentId = setupIntent['id'] as String?;
       if (setupIntentId != null) {
         // SetupIntentからPaymentMethod IDを取得
-        final url = Uri.parse('/api/stripe/setup-intent/$setupIntentId');
+        final url = Uri.parse('$_baseUrl/stripe/setup-intent/$setupIntentId');
         final response = await http.get(url);
 
         if (response.statusCode == 200) {

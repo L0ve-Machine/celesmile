@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'dart:convert';
 import '../constants/colors.dart';
 import '../services/mysql_service.dart';
@@ -82,9 +83,10 @@ class _ProviderProfileEditScreenState extends State<ProviderProfileEditScreen> {
       print('Starting upload...');
 
       // Upload image to server
+      final baseUrl = dotenv.env['API_BASE_URL'] ?? 'https://celesmile-demo.duckdns.org';
       final request = http.MultipartRequest(
         'POST',
-        Uri.parse('/api/upload/profile-image'),
+        Uri.parse('$baseUrl/api/upload/profile-image'),
       );
 
       print('Reading file bytes...');

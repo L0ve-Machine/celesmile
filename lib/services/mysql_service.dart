@@ -1,10 +1,11 @@
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'auth_service.dart';
 
 class MySQLService {
   static MySQLService? _instance;
-  final String baseUrl = '/api';
+  String get baseUrl => '${dotenv.env['API_BASE_URL'] ?? 'https://celesmile-demo.duckdns.org'}/api';
 
   MySQLService._();
 
