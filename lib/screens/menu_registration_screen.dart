@@ -59,8 +59,29 @@ class _MenuRegistrationScreenState extends State<MenuRegistrationScreen> {
             item.transportationFeeController.text = menu['transportation_fee']?.toString() ?? '0';
 
             // Parse duration options
-            if (menu['duration_options'] != null && menu['duration_options'].toString().isNotEmpty) {
-              item.durationOptions = menu['duration_options'].toString().split(',');
+            if (menu['duration_options'] != null) {
+              if (menu['duration_options'] is List) {
+                // If already a list, cast to List<String>
+                item.durationOptions = List<String>.from(menu['duration_options']);
+              } else if (menu['duration_options'].toString().isNotEmpty) {
+                // If a string, split by comma
+                item.durationOptions = menu['duration_options'].toString().split(',');
+              }
+            }
+
+            // Parse optional services
+            if (menu['optional_services'] != null && menu['optional_services'].toString().isNotEmpty) {
+              final optionalServicesStr = menu['optional_services'].toString();
+              item.optionalServices = optionalServicesStr.split(',').map((service) {
+                final parts = service.split(':');
+                if (parts.length == 2) {
+                  return {
+                    'name': parts[0],
+                    'price': int.tryParse(parts[1]) ?? 0
+                  };
+                }
+                return {'name': service, 'price': 0};
+              }).toList();
             }
 
             _menuItems.add(item);
