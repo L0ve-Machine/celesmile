@@ -747,7 +747,7 @@ app.post('/api/login', [
   checkDeviceBlock,
   authLimiter,
   authSpeedLimiter,
-  body('email').isEmail().normalizeEmail(),
+  body('email').trim().notEmpty(),  // Allow non-email usernames for testing
   body('password').notEmpty()
 ], async (req, res) => {
   try {
@@ -835,13 +835,25 @@ app.post('/api/login', [
     // Remove password from response
     const { password: _, ...providerWithoutPassword } = provider;
 
-    console.log(`✅ Successful login: ${email}`);
+    console.log(`✅ Successful login: ${email}, verified: ${provider.verified}`);
 
-    res.json({
-      success: true,
-      provider: providerWithoutPassword,
-      token: token
-    });
+    // If not verified, don't return provider data (treat as customer)
+    if (provider.verified === 0) {
+      res.json({
+        success: true,
+        user: {
+          email: provider.email,
+          name: provider.name
+        },
+        token: token
+      });
+    } else {
+      res.json({
+        success: true,
+        provider: providerWithoutPassword,
+        token: token
+      });
+    }
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ success: false, error: 'Login failed' });
@@ -882,6 +894,22 @@ app.patch('/api/providers/:providerId', authenticateToken, async (req, res) => {
     res.json({ success: true });
   } catch (error) {
     console.error('PATCH /api/providers/:providerId - Error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Verify provider (set verified = 1)
+app.patch('/api/providers/:providerId/verify', async (req, res) => {
+  try {
+    console.log('PATCH /api/providers/:providerId/verify - Provider ID:', req.params.providerId);
+    await pool.query(
+      'UPDATE providers SET verified = 1 WHERE id = ?',
+      [req.params.providerId]
+    );
+    console.log('PATCH /api/providers/:providerId/verify - Success');
+    res.json({ success: true });
+  } catch (error) {
+    console.error('PATCH /api/providers/:providerId/verify - Error:', error.message);
     res.status(500).json({ error: error.message });
   }
 });

@@ -24,7 +24,6 @@ class _SalonInfoFormScreenState extends State<SalonInfoFormScreen> {
   String? _selectedCategory;
   List<String> _selectedSubcategories = [];
   String? _selectedPrefecture;
-  bool _homeVisit = false;
   List<String> _galleryImageUrls = [];
   List<Uint8List> _selectedImages = [];
   final ImagePicker _picker = ImagePicker();
@@ -598,27 +597,6 @@ class _SalonInfoFormScreenState extends State<SalonInfoFormScreen> {
                 label: '建物名・部屋番号',
                 required: false,
                 hint: '例：〇〇ビル 301号室',
-              ),
-              const SizedBox(height: 20),
-
-              // Home visit option
-              CheckboxListTile(
-                title: const Text(
-                  '出張サービスを提供',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-                ),
-                subtitle: const Text(
-                  'お客様の自宅やオフィスへの出張サービス',
-                  style: TextStyle(fontSize: 13),
-                ),
-                value: _homeVisit,
-                onChanged: (value) {
-                  setState(() {
-                    _homeVisit = value ?? false;
-                  });
-                },
-                activeColor: AppColors.accentBlue,
-                contentPadding: EdgeInsets.zero,
               ),
               const SizedBox(height: 20),
 

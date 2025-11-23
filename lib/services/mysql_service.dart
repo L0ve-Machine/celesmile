@@ -30,7 +30,10 @@ class MySQLService {
 
   // Salon methods
   Future<List<Map<String, dynamic>>> getSalonsByProvider(String providerId) async {
-    final response = await http.get(Uri.parse('$baseUrl/salons/$providerId'));
+    final response = await http.get(
+      Uri.parse('$baseUrl/salons/$providerId'),
+      headers: _getHeaders(includeAuth: true),
+    );
     if (response.statusCode == 200) {
       return List<Map<String, dynamic>>.from(json.decode(response.body));
     }
@@ -47,7 +50,10 @@ class MySQLService {
 
   // Booking methods
   Future<List<Map<String, dynamic>>> getBookingsByProvider(String providerId) async {
-    final response = await http.get(Uri.parse('$baseUrl/bookings/$providerId'));
+    final response = await http.get(
+      Uri.parse('$baseUrl/bookings/$providerId'),
+      headers: _getHeaders(includeAuth: true),
+    );
     if (response.statusCode == 200) {
       return List<Map<String, dynamic>>.from(json.decode(response.body));
     }
@@ -56,7 +62,10 @@ class MySQLService {
 
   // Revenue methods
   Future<Map<String, dynamic>> getRevenueSummary(String providerId) async {
-    final response = await http.get(Uri.parse('$baseUrl/revenue-summary/$providerId'));
+    final response = await http.get(
+      Uri.parse('$baseUrl/revenue-summary/$providerId'),
+      headers: _getHeaders(includeAuth: true),
+    );
     if (response.statusCode == 200) {
       return Map<String, dynamic>.from(json.decode(response.body));
     }
@@ -99,7 +108,7 @@ class MySQLService {
   Future<bool> saveSalon(Map<String, dynamic> salonData) async {
     final response = await http.post(
       Uri.parse('$baseUrl/salons'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _getHeaders(includeAuth: true),
       body: json.encode(salonData),
     );
     return response.statusCode == 200;
@@ -107,7 +116,10 @@ class MySQLService {
 
   // Delete salon
   Future<bool> deleteSalon(String salonId) async {
-    final response = await http.delete(Uri.parse('$baseUrl/salons/$salonId'));
+    final response = await http.delete(
+      Uri.parse('$baseUrl/salons/$salonId'),
+      headers: _getHeaders(includeAuth: true),
+    );
     return response.statusCode == 200;
   }
 
@@ -117,7 +129,10 @@ class MySQLService {
     if (date != null) queryParams['date'] = date;
 
     final uri = Uri.parse('$baseUrl/availability/$providerId').replace(queryParameters: queryParams);
-    final response = await http.get(uri);
+    final response = await http.get(
+      uri,
+      headers: _getHeaders(includeAuth: true),
+    );
     if (response.statusCode == 200) {
       return List<Map<String, dynamic>>.from(json.decode(response.body));
     }
@@ -127,7 +142,7 @@ class MySQLService {
   Future<bool> updateAvailability(Map<String, dynamic> availabilityData) async {
     final response = await http.post(
       Uri.parse('$baseUrl/availability'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _getHeaders(includeAuth: true),
       body: json.encode(availabilityData),
     );
     return response.statusCode == 200;
@@ -135,7 +150,10 @@ class MySQLService {
 
   // Chat methods
   Future<List<Map<String, dynamic>>> getChats(String providerId) async {
-    final response = await http.get(Uri.parse('$baseUrl/chats/$providerId'));
+    final response = await http.get(
+      Uri.parse('$baseUrl/chats/$providerId'),
+      headers: _getHeaders(includeAuth: true),
+    );
     if (response.statusCode == 200) {
       return List<Map<String, dynamic>>.from(json.decode(response.body));
     }
@@ -163,7 +181,10 @@ class MySQLService {
 
   // Menu methods
   Future<List<Map<String, dynamic>>> getMenusBySalon(String salonId) async {
-    final response = await http.get(Uri.parse('$baseUrl/menus/$salonId'));
+    final response = await http.get(
+      Uri.parse('$baseUrl/menus/$salonId'),
+      headers: _getHeaders(includeAuth: true),
+    );
     if (response.statusCode == 200) {
       return List<Map<String, dynamic>>.from(json.decode(response.body));
     }
@@ -173,20 +194,26 @@ class MySQLService {
   Future<bool> saveMenu(Map<String, dynamic> menuData) async {
     final response = await http.post(
       Uri.parse('$baseUrl/menus'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _getHeaders(includeAuth: true),
       body: json.encode(menuData),
     );
     return response.statusCode == 200;
   }
 
   Future<bool> deleteMenu(String menuId) async {
-    final response = await http.delete(Uri.parse('$baseUrl/menus/$menuId'));
+    final response = await http.delete(
+      Uri.parse('$baseUrl/menus/$menuId'),
+      headers: _getHeaders(includeAuth: true),
+    );
     return response.statusCode == 200;
   }
 
   // Get provider by ID
   Future<Map<String, dynamic>?> getProviderById(String providerId) async {
-    final response = await http.get(Uri.parse('$baseUrl/providers/$providerId'));
+    final response = await http.get(
+      Uri.parse('$baseUrl/providers/$providerId'),
+      headers: _getHeaders(includeAuth: true),
+    );
     if (response.statusCode == 200) {
       return Map<String, dynamic>.from(json.decode(response.body));
     }
@@ -238,7 +265,7 @@ class MySQLService {
   Future<bool> updateProviderProfile(String providerId, Map<String, dynamic> profileData) async {
     final response = await http.patch(
       Uri.parse('$baseUrl/providers/$providerId'),
-      headers: {'Content-Type': 'application/json'},
+      headers: _getHeaders(includeAuth: true),
       body: json.encode(profileData),
     );
     return response.statusCode == 200;
@@ -382,7 +409,7 @@ class MySQLService {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/stripe/connect/account'),
-        headers: {'Content-Type': 'application/json'},
+        headers: _getHeaders(includeAuth: true),
         body: json.encode({
           'email': email,
           'providerId': providerId,
@@ -403,7 +430,7 @@ class MySQLService {
     try {
       final response = await http.post(
         Uri.parse('$baseUrl/stripe/connect/account-link'),
-        headers: {'Content-Type': 'application/json'},
+        headers: _getHeaders(includeAuth: true),
         body: json.encode({
           'accountId': accountId,
         }),
@@ -424,6 +451,7 @@ class MySQLService {
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/stripe/connect/account/$accountId'),
+        headers: _getHeaders(includeAuth: true),
       );
       if (response.statusCode == 200) {
         return json.decode(response.body);

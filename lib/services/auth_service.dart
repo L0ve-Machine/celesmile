@@ -193,21 +193,29 @@ class AuthService {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('auth_token', _currentToken!);
 
-        // Get provider data
+        // Get user/provider data
         final provider = result['provider'];
-        if (provider != null) {
-          _currentUser = provider['email'] ?? username;
+        final user = result['user'];
 
-          // If user has a provider ID, load additional data
-          if (provider['id'] != null) {
-            _userProviderIds[_currentUser!] = provider['id'];
-            await prefs.setString('provider_id_$_currentUser', provider['id']);
-          }
+        if (provider != null) {
+          // Provider account (verified)
+          _currentUser = provider['email'] ?? username;
+          _userProviderIds[_currentUser!] = provider['id'];
+          await prefs.setString('provider_id_$_currentUser', provider['id']);
+          print('✅ Set as provider: ${provider['id']}');
+        } else if (user != null) {
+          // Customer account (unverified or regular user)
+          _currentUser = user['email'] ?? username;
+          // Remove any old provider status
+          await prefs.remove('provider_id_$_currentUser');
+          _userProviderIds.remove(_currentUser);
+          print('✅ Set as customer: $_currentUser');
+        } else {
+          _currentUser = username;
         }
 
         // Load user data
         await _loadUserData(_currentUser!);
-        await loadProviderStatus();
 
         print('✅ Login successful: $_currentUser');
         return true;
@@ -297,7 +305,9 @@ class AuthService {
   // Check if current user is a provider
   static bool get isProvider {
     if (_currentUser == null) return false;
-    return _userProviderIds.containsKey(_currentUser);
+    final result = _userProviderIds.containsKey(_currentUser);
+    print('🔍 isProvider check: user=$_currentUser, result=$result, providerIds=$_userProviderIds');
+    return result;
   }
 
   // Set user as provider (called after DIDIT approval)
