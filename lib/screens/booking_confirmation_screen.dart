@@ -82,9 +82,15 @@ class _BookingConfirmationScreenState
       _isViewOnly = arguments['viewOnly'] as bool? ?? false;
     }
 
+    print('🔍 DEBUG [didChangeDependencies]: serviceId = $serviceId, _hasInitializedMenus = $_hasInitializedMenus');
+
     if (serviceId != null && !_hasInitializedMenus) {
-      // Load service from MySQL
-      _loadServiceFromMySQL(serviceId);
+      // Load service from MySQL - this will set _service
+      _loadServiceFromMySQL(serviceId).then((_) {
+        // After service is loaded, load availability with the correct provider ID
+        print('🔍 DEBUG [didChangeDependencies]: Service loaded, now loading availability');
+        _loadAvailability();
+      });
 
       // Initialize available points (mock data - should come from user profile)
       _availablePoints = 1200;
@@ -130,9 +136,14 @@ class _BookingConfirmationScreenState
   }
 
   Future<void> _loadServiceFromMySQL(String serviceId) async {
+    print('🔍 DEBUG [_loadServiceFromMySQL]: Loading service with ID = $serviceId');
     try {
       final serviceData = await MySQLService.instance.getServiceById(serviceId);
+      print('🔍 DEBUG [_loadServiceFromMySQL]: Service data received = $serviceData');
+
       if (serviceData != null && mounted) {
+        print('🔍 DEBUG [_loadServiceFromMySQL]: provider_id = ${serviceData['provider_id']}');
+        print('🔍 DEBUG [_loadServiceFromMySQL]: provider_name = ${serviceData['provider_name']}');
         // Parse menu items from API response
         List<MenuItem> menuItems = [];
         if (serviceData['menu_items'] != null && serviceData['menu_items'] is List) {
@@ -2071,7 +2082,8 @@ class _DateTimeSelectionDialogState extends State<_DateTimeSelectionDialog> {
   @override
   void initState() {
     super.initState();
-    _loadAvailability();
+    print('🔍 DEBUG [initState]: Called - _service is ${_service == null ? "null" : "not null"}');
+    // _loadAvailability() is now called in didChangeDependencies() after _service is loaded
   }
 
   Future<void> _loadAvailability() async {
@@ -2080,11 +2092,27 @@ class _DateTimeSelectionDialogState extends State<_DateTimeSelectionDialog> {
     });
 
     try {
-      final availability = await MySQLService.instance.getAvailability(widget.providerId);
-      print('📅 Loaded availability for ${widget.providerId}: ${availability.length} slots');
+      // Debug: Check provider ID source
+      final providerId = _service?.providerId ?? 'provider_test';
+      print('🔍 DEBUG: _service?.providerId = ${_service?.providerId}');
+      print('🔍 DEBUG: Using providerId = $providerId');
+      print('🔍 DEBUG: _service object = $_service');
+      print('🔍 DEBUG: Current date = ${DateTime.now()}');
+
+      final availability = await MySQLService.instance.getAvailability(providerId);
+      print('📅 Loaded availability for $providerId: ${availability.length} slots');
+
+      // Debug: Show all slots received
+      for (int i = 0; i < availability.length && i < 5; i++) {
+        print('🔍 DEBUG: Slot $i = ${availability[i]}');
+      }
+
       if (availability.isNotEmpty) {
         print('📅 First slot: ${availability[0]}');
+      } else {
+        print('⚠️ DEBUG: No availability slots found for provider: $providerId');
       }
+
       if (mounted) {
         setState(() {
           _availabilityData = availability;
@@ -2093,6 +2121,8 @@ class _DateTimeSelectionDialogState extends State<_DateTimeSelectionDialog> {
       }
     } catch (e) {
       print('❌ Error loading availability: $e');
+      print('🔍 DEBUG: Error details - ${e.toString()}');
+      print('🔍 DEBUG: Stack trace - ${StackTrace.current}');
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -2103,14 +2133,23 @@ class _DateTimeSelectionDialogState extends State<_DateTimeSelectionDialog> {
 
   List<String> _getAvailableTimeSlotsForDate(DateTime date) {
     final dateStr = DateFormat('yyyy-MM-dd').format(date);
-    return _availabilityData
-        .where((slot) {
-          // Handle both string format (yyyy-MM-dd) and ISO format (yyyy-MM-ddT00:00:00.000Z)
-          final slotDate = slot['date'] as String;
-          final normalizedDate = slotDate.split('T')[0]; // Extract date part only
-          return normalizedDate == dateStr && slot['is_available'] == 1;
-        })
-        .map((slot) {
+    print('🔍 DEBUG [_getAvailableTimeSlotsForDate]: Looking for slots on date = $dateStr');
+    print('🔍 DEBUG [_getAvailableTimeSlotsForDate]: Total availability data = ${_availabilityData.length} items');
+
+    final filteredSlots = _availabilityData.where((slot) {
+      // Handle both string format (yyyy-MM-dd) and ISO format (yyyy-MM-ddT00:00:00.000Z)
+      final slotDate = slot['date'] as String;
+      final normalizedDate = slotDate.split('T')[0]; // Extract date part only
+      final isAvailable = slot['is_available'];
+      final matches = normalizedDate == dateStr && (isAvailable == 1 || isAvailable == true);
+
+      print('🔍 DEBUG [Filter]: Slot date=$normalizedDate, looking for=$dateStr, is_available=$isAvailable, matches=$matches');
+      return matches;
+    }).toList();
+
+    print('🔍 DEBUG [_getAvailableTimeSlotsForDate]: Found ${filteredSlots.length} matching slots');
+
+    return filteredSlots.map((slot) {
           final timeSlot = slot['time_slot'] as String;
           // Convert "09:00-10:00" format to "09:00" (just show start time)
           if (timeSlot.contains('-')) {

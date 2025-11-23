@@ -22,6 +22,9 @@ class MySQLService {
       final token = AuthService.currentToken;
       if (token != null) {
         headers['Authorization'] = 'Bearer $token';
+        print('🔍 DEBUG [_getHeaders]: Auth token added, length = ${token.length}');
+      } else {
+        print('⚠️ DEBUG [_getHeaders]: No auth token available!');
       }
     }
 
@@ -125,17 +128,37 @@ class MySQLService {
 
   // Availability methods
   Future<List<Map<String, dynamic>>> getAvailability(String providerId, {String? date}) async {
+    print('🔍 DEBUG [MySQLService.getAvailability]: Called with providerId = $providerId, date = $date');
+
     final queryParams = <String, String>{};
     if (date != null) queryParams['date'] = date;
 
     final uri = Uri.parse('$baseUrl/availability/$providerId').replace(queryParameters: queryParams);
+    print('🔍 DEBUG [MySQLService]: API URL = $uri');
+
+    final headers = _getHeaders(includeAuth: true);
+    print('🔍 DEBUG [MySQLService]: Request headers = $headers');
+    print('🔍 DEBUG [MySQLService]: Auth token present = ${headers['Authorization'] != null}');
+
     final response = await http.get(
       uri,
-      headers: _getHeaders(includeAuth: true),
+      headers: headers,
     );
+
+    print('🔍 DEBUG [MySQLService]: Response status code = ${response.statusCode}');
+    print('🔍 DEBUG [MySQLService]: Response body = ${response.body}');
+
     if (response.statusCode == 200) {
-      return List<Map<String, dynamic>>.from(json.decode(response.body));
+      final data = List<Map<String, dynamic>>.from(json.decode(response.body));
+      print('🔍 DEBUG [MySQLService]: Parsed ${data.length} availability slots');
+      return data;
+    } else if (response.statusCode == 403) {
+      print('❌ DEBUG [MySQLService]: Authorization failed - user may not have access to this provider');
+    } else if (response.statusCode == 401) {
+      print('❌ DEBUG [MySQLService]: Authentication failed - token may be invalid or expired');
     }
+
+    print('⚠️ DEBUG [MySQLService]: Returning empty array due to status ${response.statusCode}');
     return [];
   }
 

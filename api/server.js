@@ -527,10 +527,20 @@ app.delete('/api/salons/:salonId', authenticateToken, async (req, res) => {
 
 // Get availability calendar
 app.get('/api/availability/:providerId', authenticateToken, async (req, res) => {
+  console.log('🔍 DEBUG [API availability]: Request for provider:', req.params.providerId);
+  console.log('🔍 DEBUG [API availability]: User ID:', req.user?.id);
+  console.log('🔍 DEBUG [API availability]: User role:', req.user?.role);
+  console.log('🔍 DEBUG [API availability]: Query params:', req.query);
+
   // Check authorization
   if (req.user.id !== req.params.providerId && req.user.role !== 'admin') {
+    console.log('❌ DEBUG [API availability]: Authorization failed');
+    console.log('  - User ID:', req.user.id);
+    console.log('  - Provider ID:', req.params.providerId);
+    console.log('  - User role:', req.user.role);
     return res.status(403).json({ error: 'Not authorized' });
   }
+
   try {
     const { date } = req.query;
     let query = 'SELECT * FROM availability_calendar WHERE provider_id = ?';
@@ -539,12 +549,25 @@ app.get('/api/availability/:providerId', authenticateToken, async (req, res) => 
     if (date) {
       query += ' AND date = ?';
       params.push(date);
+    } else {
+      // Add filter to only get future dates if no specific date is provided
+      query += ' AND date >= CURDATE()';
     }
 
     query += ' ORDER BY date, time_slot';
+    console.log('🔍 DEBUG [API availability]: SQL query:', query);
+    console.log('🔍 DEBUG [API availability]: SQL params:', params);
+
     const [rows] = await pool.query(query, params);
+    console.log('🔍 DEBUG [API availability]: Found', rows.length, 'slots');
+
+    if (rows.length > 0) {
+      console.log('🔍 DEBUG [API availability]: First slot:', rows[0]);
+    }
+
     res.json(rows);
   } catch (error) {
+    console.error('❌ DEBUG [API availability]: Error:', error);
     res.status(500).json({ error: error.message });
   }
 });
