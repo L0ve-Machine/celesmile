@@ -17,21 +17,60 @@ class ProviderHomeDashboardScreen extends StatefulWidget {
 class _ProviderHomeDashboardScreenState extends State<ProviderHomeDashboardScreen> {
   final providerDb = ProviderDatabaseService();
   String? _currentProviderId;
+  Map<String, dynamic>? _providerData;
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
     _currentProviderId = widget.providerId ?? AuthService.currentUserProviderId;
+    _loadProviderData();
+  }
+
+  Future<void> _loadProviderData() async {
+    if (_currentProviderId != null) {
+      try {
+        final data = await MySQLService.instance.getProviderById(_currentProviderId!);
+        if (mounted) {
+          setState(() {
+            _providerData = data;
+            _isLoading = false;
+          });
+        }
+      } catch (e) {
+        print('Error loading provider data: $e');
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      }
+    } else {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: Colors.white,
+        body: Center(
+          child: CircularProgressIndicator(
+            color: AppColors.primaryOrange,
+          ),
+        ),
+      );
+    }
+
     final provider = _currentProviderId != null
         ? providerDb.getProvider(_currentProviderId!)
         : null;
-    final verification = _currentProviderId != null
-        ? providerDb.getVerification(_currentProviderId!)
-        : null;
+
+    // Use DB verified field instead of verification status
+    final isVerified = _providerData?['verified'] == 1;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -165,11 +204,11 @@ class _ProviderHomeDashboardScreenState extends State<ProviderHomeDashboardScree
                 // Verification status card
                 _buildDashboardCard(
                   icon: Icons.verified_user,
-                  iconColor: verification?.verificationStatus == 'approved'
+                  iconColor: isVerified
                       ? Colors.green
                       : AppColors.primaryOrange,
                   title: '審査状況',
-                  subtitle: verification?.verificationStatus == 'approved'
+                  subtitle: isVerified
                       ? '承認済み'
                       : '審査中',
                   onTap: () {
@@ -183,7 +222,7 @@ class _ProviderHomeDashboardScreenState extends State<ProviderHomeDashboardScree
                 const SizedBox(height: 12),
 
                 // Availability calendar (only if approved)
-                if (verification?.verificationStatus == 'approved')
+                if (isVerified)
                   _buildDashboardCard(
                     icon: Icons.calendar_month,
                     iconColor: AppColors.accentBlue,
@@ -197,7 +236,7 @@ class _ProviderHomeDashboardScreenState extends State<ProviderHomeDashboardScree
                       );
                     },
                   ),
-                if (verification?.verificationStatus == 'approved')
+                if (isVerified)
                   const SizedBox(height: 12),
 
                 // Chat
