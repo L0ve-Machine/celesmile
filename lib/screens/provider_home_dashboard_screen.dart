@@ -18,13 +18,26 @@ class _ProviderHomeDashboardScreenState extends State<ProviderHomeDashboardScree
   final providerDb = ProviderDatabaseService();
   String? _currentProviderId;
   Map<String, dynamic>? _providerData;
-  bool _isLoading = true;
+  bool _isLoading = false;  // Changed from true to false
 
   @override
   void initState() {
     super.initState();
     _currentProviderId = widget.providerId ?? AuthService.currentUserProviderId;
+    print('🚀 INIT STATE: providerId from widget=${widget.providerId}, from AuthService=${AuthService.currentUserProviderId}, using=$_currentProviderId');
     _loadProviderData();
+  }
+
+  @override
+  void didUpdateWidget(ProviderHomeDashboard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    print('🔄 DID UPDATE WIDGET: old providerId=${oldWidget.providerId}, new providerId=${widget.providerId}');
+    if (oldWidget.providerId != widget.providerId) {
+      _currentProviderId = widget.providerId ?? AuthService.currentUserProviderId;
+      _providerData = null;  // Clear old data
+      _isLoading = true;
+      _loadProviderData();
+    }
   }
 
   Future<void> _loadProviderData() async {
@@ -56,6 +69,8 @@ class _ProviderHomeDashboardScreenState extends State<ProviderHomeDashboardScree
 
   @override
   Widget build(BuildContext context) {
+    print('🏗️ BUILD CALLED: _isLoading=$_isLoading, _providerData=${_providerData != null}');
+
     if (_isLoading) {
       return Scaffold(
         backgroundColor: Colors.white,
