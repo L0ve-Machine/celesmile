@@ -30,7 +30,9 @@ class _ProviderHomeDashboardScreenState extends State<ProviderHomeDashboardScree
   Future<void> _loadProviderData() async {
     if (_currentProviderId != null) {
       try {
+        print('🔍 Loading provider data for ID: $_currentProviderId');
         final data = await MySQLService.instance.getProviderById(_currentProviderId!);
+        print('📦 Provider data received: $data');
         if (mounted) {
           setState(() {
             _providerData = data;
@@ -38,7 +40,7 @@ class _ProviderHomeDashboardScreenState extends State<ProviderHomeDashboardScree
           });
         }
       } catch (e) {
-        print('Error loading provider data: $e');
+        print('❌ Error loading provider data: $e');
         if (mounted) {
           setState(() {
             _isLoading = false;
@@ -136,7 +138,7 @@ class _ProviderHomeDashboardScreenState extends State<ProviderHomeDashboardScree
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            provider?.name ?? 'ゲストユーザー',
+                            _providerData?['name'] ?? 'ゲストユーザー',
                             style: const TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.w600,
