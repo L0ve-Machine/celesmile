@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import '../constants/colors.dart';
-import '../services/provider_database_service.dart';
-import '../services/mysql_service.dart';
 
 class ProviderVerificationStatusScreen extends StatefulWidget {
   const ProviderVerificationStatusScreen({super.key});
@@ -11,22 +9,8 @@ class ProviderVerificationStatusScreen extends StatefulWidget {
 }
 
 class _ProviderVerificationStatusScreenState extends State<ProviderVerificationStatusScreen> {
-  String? _providerId;
-  final providerDb = ProviderDatabaseService();
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _providerId = ModalRoute.of(context)?.settings.arguments as String?;
-  }
-
   @override
   Widget build(BuildContext context) {
-    final provider = _providerId != null ? providerDb.getProvider(_providerId!) : null;
-    final verification = _providerId != null ? providerDb.getVerification(_providerId!) : null;
-    final bankAccount = _providerId != null ? providerDb.getBankAccount(_providerId!) : null;
-    final salons = _providerId != null ? providerDb.getSalonsByProvider(_providerId!) : [];
-
     // Determine overall verification status
     String overallStatus = 'approved';  // Always approved
 
@@ -96,85 +80,6 @@ class _ProviderVerificationStatusScreenState extends State<ProviderVerificationS
               ),
             ),
 
-            const SizedBox(height: 32),
-
-            // Verification details
-            const Text(
-              '審査項目',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Identity verification
-            _buildVerificationItem(
-              title: '本人確認書類',
-              status: 'approved',
-              details: '承認済み',
-              rejectionReason: null,
-            ),
-
-            const SizedBox(height: 12),
-
-            // Bank account
-            _buildVerificationItem(
-              title: '銀行口座情報',
-              status: 'approved',
-              details: '承認済み',
-            ),
-
-            const SizedBox(height: 12),
-
-            // Salon information
-            _buildVerificationItem(
-              title: 'サロン情報',
-              status: 'approved',
-              details: '承認済み',
-            ),
-
-            if (verification?.verificationStatus == 'rejected') ...[
-              const SizedBox(height: 32),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.red[50],
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.red),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: const [
-                        Icon(Icons.error_outline, color: Colors.red, size: 20),
-                        SizedBox(width: 8),
-                        Text(
-                          '審査非承認の理由',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.red,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      verification?.rejectionReason ?? '理由が記載されていません',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey[800],
-                        height: 1.5,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-
             const SizedBox(height: 40),
           ],
         ),
@@ -182,92 +87,6 @@ class _ProviderVerificationStatusScreenState extends State<ProviderVerificationS
     );
   }
 
-  Widget _buildVerificationItem({
-    required String title,
-    required String status,
-    required String details,
-    String? rejectionReason,
-  }) {
-    Color statusColor;
-    IconData statusIcon;
-    String statusText;
-
-    switch (status) {
-      case 'approved':
-        statusColor = Colors.green;
-        statusIcon = Icons.check_circle;
-        statusText = '承認済み';
-        break;
-      case 'pending':
-        statusColor = AppColors.primaryOrange;
-        statusIcon = Icons.pending;
-        statusText = '審査中';
-        break;
-      case 'rejected':
-        statusColor = Colors.red;
-        statusIcon = Icons.cancel;
-        statusText = '非承認';
-        break;
-      default:
-        statusColor = Colors.grey;
-        statusIcon = Icons.remove_circle_outline;
-        statusText = '未提出';
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.lightGray),
-      ),
-      child: Row(
-        children: [
-          Icon(statusIcon, color: statusColor, size: 32),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  details,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey[600],
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    statusText,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: statusColor,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   Color _getStatusColor(String status) {
     switch (status) {
@@ -321,20 +140,4 @@ class _ProviderVerificationStatusScreenState extends State<ProviderVerificationS
     }
   }
 
-  String _getIdTypeName(String idType) {
-    switch (idType) {
-      case 'license':
-        return '運転免許証';
-      case 'passport':
-        return 'パスポート';
-      case 'mynumber':
-        return 'マイナンバーカード';
-      default:
-        return idType;
-    }
-  }
-
-  String _formatDate(DateTime date) {
-    return '${date.year}年${date.month}月${date.day}日';
-  }
 }

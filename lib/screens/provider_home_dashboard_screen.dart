@@ -228,8 +228,8 @@ class _ProviderHomeDashboardScreenState extends State<ProviderHomeDashboardScree
                       : AppColors.primaryOrange,
                   title: '審査状況',
                   subtitle: isVerified
-                      ? '承認済み (DEBUG: verified=${_providerData?['verified']})'
-                      : '審査中 (DEBUG: verified=${_providerData?['verified']})',
+                      ? '承認済み'
+                      : '審査中',
                   onTap: () {
                     Navigator.pushNamed(
                       context,
@@ -242,12 +242,6 @@ class _ProviderHomeDashboardScreenState extends State<ProviderHomeDashboardScree
 
                 // Availability calendar (only if approved)
                 if (isVerified) ...[
-                  // Debug
-                  Container(
-                    padding: EdgeInsets.all(8),
-                    color: Colors.green.withOpacity(0.1),
-                    child: Text('DEBUG: isVerified=$isVerified, カレンダーを表示すべき'),
-                  ),
                   _buildDashboardCard(
                     icon: Icons.calendar_month,
                     iconColor: AppColors.accentBlue,
@@ -262,13 +256,6 @@ class _ProviderHomeDashboardScreenState extends State<ProviderHomeDashboardScree
                     },
                   ),
                   const SizedBox(height: 12),
-                ] else ...[
-                  // Debug
-                  Container(
-                    padding: EdgeInsets.all(8),
-                    color: Colors.red.withOpacity(0.1),
-                    child: Text('DEBUG: isVerified=$isVerified, カレンダー非表示'),
-                  ),
                 ],
 
                 // Chat

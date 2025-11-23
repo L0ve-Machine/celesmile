@@ -959,10 +959,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         }
 
         final servicesData = snapshot.data!;
-        print('🔍 DEBUG: Loaded ${servicesData.length} services from MySQL');
-        for (var service in servicesData) {
-          print('  - ${service['id']}: ${service['title']} (provider: ${service['provider_id']})');
-        }
 
         // Convert MySQL data directly to ServiceModel
         List<ServiceModel> filteredServices = servicesData.map((data) {
@@ -990,8 +986,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             transportationFee: 0,
           );
         }).toList();
-        print('🔍 DEBUG: Converted to ${filteredServices.length} ServiceModel objects');
-
     // Don't show section if no services match
     if (filteredServices.isEmpty) {
       return Container(
