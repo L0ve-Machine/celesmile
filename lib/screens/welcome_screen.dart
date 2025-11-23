@@ -97,7 +97,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                 const SizedBox(height: 12),
 
                 // Username field
-                _buildCompactField('ユーザーネーム', _usernameController, false),
+                _buildCompactField('メールアドレス', _usernameController, false),
 
                 const SizedBox(height: 8),
 
@@ -269,7 +269,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
 
     // 入力チェック
     if (username.isEmpty || password.isEmpty) {
-      _showErrorDialog('ユーザーネームとパスワードを入力してください');
+      _showErrorDialog('メールアドレスとパスワードを入力してください');
       return;
     }
 
