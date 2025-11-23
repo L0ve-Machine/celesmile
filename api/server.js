@@ -532,14 +532,9 @@ app.get('/api/availability/:providerId', authenticateToken, async (req, res) => 
   console.log('🔍 DEBUG [API availability]: User role:', req.user?.role);
   console.log('🔍 DEBUG [API availability]: Query params:', req.query);
 
-  // Check authorization
-  if (req.user.id !== req.params.providerId && req.user.role !== 'admin') {
-    console.log('❌ DEBUG [API availability]: Authorization failed');
-    console.log('  - User ID:', req.user.id);
-    console.log('  - Provider ID:', req.params.providerId);
-    console.log('  - User role:', req.user.role);
-    return res.status(403).json({ error: 'Not authorized' });
-  }
+  // 認証済みユーザーなら誰でも閲覧可能（購入者も含む）
+  // Authorization check removed - any authenticated user can view availability
+  console.log('✅ DEBUG [API availability]: Access granted for viewing availability');
 
   try {
     const { date } = req.query;
