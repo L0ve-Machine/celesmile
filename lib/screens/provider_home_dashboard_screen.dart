@@ -72,7 +72,9 @@ class _ProviderHomeDashboardScreenState extends State<ProviderHomeDashboardScree
         : null;
 
     // Use DB verified field instead of verification status
+    print('🔍 Checking verification: _providerData=${_providerData != null}, verified=${_providerData?['verified']}, type=${_providerData?['verified']?.runtimeType}');
     final isVerified = _providerData?['verified'] == 1;
+    print('✅ isVerified result: $isVerified');
 
     return Scaffold(
       backgroundColor: Colors.white,
