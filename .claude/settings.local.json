@@ -4,7 +4,9 @@
       "Bash(systemctl status:*)",
       "Bash(journalctl:*)",
       "Bash(systemctl restart:*)",
-      "Bash(mysql:*)"
+      "Bash(mysql:*)",
+      "Bash(flutter build:*)",
+      "Bash(git clone:*)"
     ],
     "deny": [],
     "ask": []

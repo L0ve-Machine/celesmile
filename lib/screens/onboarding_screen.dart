@@ -282,7 +282,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ],
             ),
 
-            const SizedBox(height: 40),
+            const SizedBox(height: 24),
 
             // Title
             Text(
@@ -294,49 +294,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ),
             ),
 
-            const SizedBox(height: 8),
+            const SizedBox(height: 16),
 
-            Text(
-              'すぐに始められます',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey[600],
-              ),
-            ),
-
-            const SizedBox(height: 40),
-
-            // 3 Steps
+            // 3 Steps Images
             Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Column(
-                  children: [
-                    _buildStepItem(
-                      stepNumber: 1,
-                      icon: Icons.touch_app_rounded,
-                      title: '希望のサービスを選択',
-                      subtitle: '依頼内容の詳細を入力',
-                      imagePath: 'assets/images/2.png',
-                    ),
-                    const SizedBox(height: 16),
-                    _buildStepItem(
-                      stepNumber: 2,
-                      icon: Icons.calendar_today_rounded,
-                      title: '希望の日時を選択',
-                      subtitle: '金額を確認して依頼完了！',
-                      imagePath: 'assets/images/3.png',
-                    ),
-                    const SizedBox(height: 16),
-                    _buildStepItem(
-                      stepNumber: 3,
-                      icon: Icons.home_rounded,
-                      title: 'サービス実施',
-                      subtitle: '指定日に家事キャストを待つだけ！',
-                      imagePath: 'assets/images/4.png',
-                    ),
-                  ],
-                ),
+              child: PageView(
+                children: [
+                  _buildStepImagePage('assets/images/2.png'),
+                  _buildStepImagePage('assets/images/3.png'),
+                  _buildStepImagePage('assets/images/4.png'),
+                ],
               ),
             ),
 
@@ -381,79 +348,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  Widget _buildStepItem({
-    required int stepNumber,
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required String imagePath,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          // Step number circle
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: AppColors.primaryOrange,
-            ),
-            child: Center(
-              child: Text(
-                '$stepNumber',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 16),
-          // Text content
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  subtitle,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey[600],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // Icon
-          Icon(
-            icon,
-            size: 32,
-            color: AppColors.primaryOrange.withOpacity(0.7),
-          ),
-        ],
+  Widget _buildStepImagePage(String imagePath) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Center(
+        child: Image.asset(
+          imagePath,
+          fit: BoxFit.contain,
+        ),
       ),
     );
   }
