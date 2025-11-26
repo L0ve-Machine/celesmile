@@ -191,7 +191,9 @@ class AuthService {
 
         // Save token to SharedPreferences
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('auth_token', _currentToken!);
+        if (_currentToken != null) {
+          await prefs.setString('auth_token', _currentToken!);
+        }
 
         // Get user/provider data
         final provider = result['provider'];

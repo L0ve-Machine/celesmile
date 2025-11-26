@@ -29,7 +29,7 @@ class _ProviderHomeDashboardScreenState extends State<ProviderHomeDashboardScree
   }
 
   @override
-  void didUpdateWidget(ProviderHomeDashboard oldWidget) {
+  void didUpdateWidget(ProviderHomeDashboardScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     print('🔄 DID UPDATE WIDGET: old providerId=${oldWidget.providerId}, new providerId=${widget.providerId}');
     if (oldWidget.providerId != widget.providerId) {
@@ -119,11 +119,11 @@ class _ProviderHomeDashboardScreenState extends State<ProviderHomeDashboardScree
           ),
         ],
       ),
-      body: _buildRegisteredView(provider, verification),
+      body: _buildRegisteredView(provider, isVerified),
     );
   }
 
-  Widget _buildRegisteredView(ProviderProfile? provider, IdentityVerification? verification) {
+  Widget _buildRegisteredView(ProviderProfile? provider, bool isVerified) {
 
     return SingleChildScrollView(
       child: Column(

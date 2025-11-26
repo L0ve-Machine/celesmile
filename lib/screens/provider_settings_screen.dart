@@ -259,7 +259,7 @@ class _ProviderSettingsScreenState extends State<ProviderSettingsScreen> {
               icon: Icons.description_outlined,
               title: '利用規約',
               onTap: () {
-                _showComingSoonDialog('利用規約');
+                Navigator.pushNamed(context, '/terms-of-service');
               },
             ),
             _buildSettingItem(

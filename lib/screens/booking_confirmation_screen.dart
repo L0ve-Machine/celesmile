@@ -87,19 +87,16 @@ class _BookingConfirmationScreenState
     if (serviceId != null && !_hasInitializedMenus) {
       // Load service from MySQL - this will set _service
       _loadServiceFromMySQL(serviceId).then((_) {
-        // After service is loaded, load availability with the correct provider ID
-        print('🔍 DEBUG [didChangeDependencies]: Service loaded, now loading availability');
-        _loadAvailability();
+        // After service is loaded, availability will be loaded when date picker dialog is opened
+        print('🔍 DEBUG [didChangeDependencies]: Service loaded');
       });
 
-      // Initialize available points (mock data - should come from user profile)
-      _availablePoints = 1200;
+      // Points will be loaded from backend when available
+      _availablePoints = 0;
 
       // Initialize available coupons (mock data)
-      _availableCoupons = [
-        {'id': 'WELCOME10', 'name': '初回限定10%OFF', 'discount': 0.1},
-        {'id': 'SPRING500', 'name': '春の500円OFFクーポン', 'discount': 500},
-      ];
+      // Coupons will be loaded from backend when available
+      _availableCoupons = [];
 
       // Load saved cards
       _loadSavedCards();
@@ -984,7 +981,7 @@ class _BookingConfirmationScreenState
                       Expanded(
                         child: GestureDetector(
                           onTap: () {
-                            // Show cancellation policy details
+                            _showCancellationPolicyDialog();
                           },
                           child: const Text(
                             'キャンセルポリシーに同意します',
@@ -1183,6 +1180,34 @@ class _BookingConfirmationScreenState
     }
 
     return booking.id;
+  }
+
+  void _showCancellationPolicyDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text(
+          'キャンセルポリシー',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: const Text(
+          '本会員は、予約開始時刻の180分前まではいつでもケアスタッフへの通知をもって予約をキャンセルできます。\n\n180分前を過ぎた場合、本会員はサービス料の全額をキャンセル料として支払うものとします。',
+          style: TextStyle(
+            fontSize: 14,
+            height: 1.6,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('閉じる'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showConfirmationDialog() {
@@ -2082,8 +2107,8 @@ class _DateTimeSelectionDialogState extends State<_DateTimeSelectionDialog> {
   @override
   void initState() {
     super.initState();
-    print('🔍 DEBUG [initState]: Called - _service is ${_service == null ? "null" : "not null"}');
-    // _loadAvailability() is now called in didChangeDependencies() after _service is loaded
+    print('🔍 DEBUG [initState]: Called with providerId = ${widget.providerId}');
+    _loadAvailability();
   }
 
   Future<void> _loadAvailability() async {
@@ -2093,10 +2118,8 @@ class _DateTimeSelectionDialogState extends State<_DateTimeSelectionDialog> {
 
     try {
       // Debug: Check provider ID source
-      final providerId = _service?.providerId ?? 'provider_test';
-      print('🔍 DEBUG: _service?.providerId = ${_service?.providerId}');
+      final providerId = widget.providerId;
       print('🔍 DEBUG: Using providerId = $providerId');
-      print('🔍 DEBUG: _service object = $_service');
       print('🔍 DEBUG: Current date = ${DateTime.now()}');
 
       final availability = await MySQLService.instance.getAvailability(providerId);

@@ -31,12 +31,9 @@ class UserSettingsScreen extends StatelessWidget {
           _buildMenuItem(
             context,
             '利用規約・ガイドライン',
-            () {},
-          ),
-          _buildMenuItem(
-            context,
-            'お問い合わせ',
-            () {},
+            () {
+              Navigator.pushNamed(context, '/terms-of-service');
+            },
           ),
           _buildSectionHeader('マイページ'),
           _buildMenuItem(
@@ -58,7 +55,7 @@ class UserSettingsScreen extends StatelessWidget {
             context,
             'プロフィール編集',
             () {
-              Navigator.pushNamed(context, '/profile-registration');
+              Navigator.pushNamed(context, '/profile-registration', arguments: {'isEditMode': true});
             },
           ),
           _buildSectionHeader('アカウントの切り替え', trailing: _buildInfoButton(context)),

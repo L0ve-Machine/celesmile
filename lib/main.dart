@@ -87,7 +87,10 @@ class CelesmileApp extends StatelessWidget {
         '/onboarding': (context) => const OnboardingScreen(),
         '/phone-verification': (context) => const PhoneVerificationScreen(),
         '/account-setup': (context) => const AccountSetupScreen(),
-        '/profile-registration': (context) => const ProfileRegistrationScreen(),
+        '/profile-registration': (context) {
+          final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;
+          return ProfileRegistrationScreen(isEditMode: args?['isEditMode'] ?? false);
+        },
         '/payment-registration': (context) => const PaymentRegistrationScreen(),
         '/dashboard': (context) => const DashboardScreen(),
         '/user-settings': (context) => const UserSettingsScreen(),

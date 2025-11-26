@@ -4,7 +4,9 @@ import '../constants/colors.dart';
 import '../services/auth_service.dart';
 
 class ProfileRegistrationScreen extends StatefulWidget {
-  const ProfileRegistrationScreen({super.key});
+  final bool isEditMode;
+
+  const ProfileRegistrationScreen({super.key, this.isEditMode = false});
 
   @override
   State<ProfileRegistrationScreen> createState() =>
@@ -29,6 +31,95 @@ class _ProfileRegistrationScreenState extends State<ProfileRegistrationScreen> {
   bool _acceptTerms = false;
   bool _acceptAntiSocial = false;
   bool _acceptNoConviction = false;
+
+  // Error states for real-time validation
+  String? _nameError;
+  String? _genderError;
+  String? _birthDateError;
+  String? _phoneError;
+  String? _emailError;
+  String? _postalCodeError;
+  String? _prefectureError;
+  String? _cityError;
+  String? _addressError;
+
+  // Real-time validation methods
+  void _validateName(String value) {
+    setState(() {
+      if (value.trim().isEmpty) {
+        _nameError = '登録名を入力してください';
+      } else if (value.trim().length < 2) {
+        _nameError = '登録名は2文字以上で入力してください';
+      } else {
+        _nameError = null;
+      }
+    });
+  }
+
+  void _validatePhone(String value) {
+    setState(() {
+      final cleanPhone = value.replaceAll(RegExp(r'[-\s]'), '');
+      if (value.trim().isEmpty) {
+        _phoneError = '電話番号を入力してください';
+      } else if (!RegExp(r'^[0-9]{10,11}$').hasMatch(cleanPhone)) {
+        _phoneError = '10桁または11桁の数字で入力';
+      } else {
+        _phoneError = null;
+      }
+    });
+  }
+
+  void _validateEmail(String value) {
+    setState(() {
+      if (value.trim().isEmpty) {
+        _emailError = 'Eメールを入力してください';
+      } else if (!RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$').hasMatch(value)) {
+        _emailError = '正しいメールアドレスを入力';
+      } else {
+        _emailError = null;
+      }
+    });
+  }
+
+  void _validatePostalCode(String value) {
+    setState(() {
+      if (value.trim().isEmpty) {
+        _postalCodeError = '郵便番号を入力してください';
+      } else {
+        _postalCodeError = null;
+      }
+    });
+  }
+
+  void _validatePrefecture(String value) {
+    setState(() {
+      if (value.trim().isEmpty) {
+        _prefectureError = '都道府県を入力してください';
+      } else {
+        _prefectureError = null;
+      }
+    });
+  }
+
+  void _validateCity(String value) {
+    setState(() {
+      if (value.trim().isEmpty) {
+        _cityError = '市区町村を入力してください';
+      } else {
+        _cityError = null;
+      }
+    });
+  }
+
+  void _validateAddress(String value) {
+    setState(() {
+      if (value.trim().isEmpty) {
+        _addressError = '番地を入力してください';
+      } else {
+        _addressError = null;
+      }
+    });
+  }
 
   @override
   void initState() {
@@ -75,9 +166,9 @@ class _ProfileRegistrationScreenState extends State<ProfileRegistrationScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.lightBeige,
         elevation: 0,
-        title: const Text(
-          'プロフィール登録',
-          style: TextStyle(
+        title: Text(
+          widget.isEditMode ? 'プロフィール編集' : 'プロフィール登録',
+          style: const TextStyle(
             color: AppColors.textPrimary,
             fontSize: 18,
             fontWeight: FontWeight.w600,
@@ -95,7 +186,12 @@ class _ProfileRegistrationScreenState extends State<ProfileRegistrationScreen> {
             // 登録名
             _buildLabel('登録名'),
             const SizedBox(height: 8),
-            _buildTextField(_nameController, 'セレ スマ子'),
+            _buildTextField(
+              _nameController,
+              'セレ スマ子',
+              errorText: _nameError,
+              onChanged: _validateName,
+            ),
 
             const SizedBox(height: 20),
 
@@ -123,7 +219,13 @@ class _ProfileRegistrationScreenState extends State<ProfileRegistrationScreen> {
             // Eメール
             _buildLabel('Eメール'),
             const SizedBox(height: 8),
-            _buildTextField(_emailController, 'test@celesmile.com', keyboardType: TextInputType.emailAddress),
+            _buildTextField(
+              _emailController,
+              'test@celesmile.com',
+              keyboardType: TextInputType.emailAddress,
+              errorText: _emailError,
+              onChanged: _validateEmail,
+            ),
 
             const SizedBox(height: 20),
 
@@ -140,70 +242,56 @@ class _ProfileRegistrationScreenState extends State<ProfileRegistrationScreen> {
             const SizedBox(height: 12),
 
             // 郵便番号
-            Text(
-              '郵便番号',
-              style: TextStyle(
-                fontSize: 13,
-                color: Colors.grey[700],
-                fontWeight: FontWeight.w500,
-              ),
-            ),
+            _buildSubLabel('郵便番号', required: true),
             const SizedBox(height: 6),
-            _buildTextField(_postalCodeController, '123-4567', keyboardType: TextInputType.number),
+            _buildTextField(
+              _postalCodeController,
+              '123-4567',
+              keyboardType: TextInputType.number,
+              errorText: _postalCodeError,
+              onChanged: _validatePostalCode,
+            ),
 
             const SizedBox(height: 12),
 
             // 都道府県
-            Text(
-              '都道府県',
-              style: TextStyle(
-                fontSize: 13,
-                color: Colors.grey[700],
-                fontWeight: FontWeight.w500,
-              ),
-            ),
+            _buildSubLabel('都道府県', required: true),
             const SizedBox(height: 6),
-            _buildTextField(_prefectureController, '東京都'),
+            _buildTextField(
+              _prefectureController,
+              '東京都',
+              errorText: _prefectureError,
+              onChanged: _validatePrefecture,
+            ),
 
             const SizedBox(height: 12),
 
             // 市区町村
-            Text(
-              '市区町村',
-              style: TextStyle(
-                fontSize: 13,
-                color: Colors.grey[700],
-                fontWeight: FontWeight.w500,
-              ),
-            ),
+            _buildSubLabel('市区町村', required: true),
             const SizedBox(height: 6),
-            _buildTextField(_cityController, '渋谷区'),
+            _buildTextField(
+              _cityController,
+              '渋谷区',
+              errorText: _cityError,
+              onChanged: _validateCity,
+            ),
 
             const SizedBox(height: 12),
 
             // 番地
-            Text(
-              '番地',
-              style: TextStyle(
-                fontSize: 13,
-                color: Colors.grey[700],
-                fontWeight: FontWeight.w500,
-              ),
-            ),
+            _buildSubLabel('番地', required: true),
             const SizedBox(height: 6),
-            _buildTextField(_addressController, '1-2-3'),
+            _buildTextField(
+              _addressController,
+              '1-2-3',
+              errorText: _addressError,
+              onChanged: _validateAddress,
+            ),
 
             const SizedBox(height: 12),
 
             // 建物名・部屋番号
-            Text(
-              '建物名・部屋番号（任意）',
-              style: TextStyle(
-                fontSize: 13,
-                color: Colors.grey[700],
-                fontWeight: FontWeight.w500,
-              ),
-            ),
+            _buildSubLabel('建物名・部屋番号（任意）', required: false),
             const SizedBox(height: 6),
             _buildTextField(_buildingController, 'マンション名 101号室'),
 
@@ -229,54 +317,137 @@ class _ProfileRegistrationScreenState extends State<ProfileRegistrationScreen> {
     );
   }
 
-  Widget _buildLabel(String text) {
-    return Text(
-      text,
-      style: const TextStyle(
-        color: AppColors.textPrimary,
-        fontSize: 14,
-        fontWeight: FontWeight.w500,
-      ),
+  Widget _buildLabel(String text, {bool required = true}) {
+    return Row(
+      children: [
+        Text(
+          text,
+          style: const TextStyle(
+            color: AppColors.textPrimary,
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        if (required) ...[
+          const SizedBox(width: 4),
+          const Text(
+            '*',
+            style: TextStyle(
+              color: Colors.red,
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ],
     );
   }
 
-  Widget _buildTextField(TextEditingController controller, String hint, {TextInputType? keyboardType}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.lightGray),
-      ),
-      child: TextField(
-        controller: controller,
-        keyboardType: keyboardType,
-        style: const TextStyle(color: AppColors.textPrimary, fontSize: 15),
-        decoration: InputDecoration(
-          border: InputBorder.none,
-          hintText: hint,
-          hintStyle: const TextStyle(color: AppColors.textSecondary),
-          isDense: true,
-          contentPadding: EdgeInsets.zero,
+  Widget _buildSubLabel(String text, {bool required = true}) {
+    return Row(
+      children: [
+        Text(
+          text,
+          style: TextStyle(
+            fontSize: 13,
+            color: Colors.grey[700],
+            fontWeight: FontWeight.w500,
+          ),
         ),
-      ),
+        if (required) ...[
+          const SizedBox(width: 4),
+          const Text(
+            '*',
+            style: TextStyle(
+              color: Colors.red,
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildTextField(
+    TextEditingController controller,
+    String hint, {
+    TextInputType? keyboardType,
+    String? errorText,
+    Function(String)? onChanged,
+  }) {
+    final hasError = errorText != null && errorText.isNotEmpty;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: hasError ? Colors.red : AppColors.lightGray,
+              width: hasError ? 2 : 1,
+            ),
+          ),
+          child: TextField(
+            controller: controller,
+            keyboardType: keyboardType,
+            style: const TextStyle(color: AppColors.textPrimary, fontSize: 15),
+            onChanged: onChanged,
+            decoration: InputDecoration(
+              border: InputBorder.none,
+              hintText: hint,
+              hintStyle: const TextStyle(color: AppColors.textSecondary),
+              isDense: true,
+              contentPadding: EdgeInsets.zero,
+            ),
+          ),
+        ),
+        if (hasError) ...[
+          const SizedBox(height: 4),
+          Text(
+            errorText,
+            style: const TextStyle(
+              color: Colors.red,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ],
     );
   }
 
   Widget _buildGenderSelector() {
-    return Row(
+    final hasError = _genderError != null && _genderError!.isNotEmpty;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: _buildGenderButton('男性'),
+        Row(
+          children: [
+            Expanded(
+              child: _buildGenderButton('男性'),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _buildGenderButton('女性'),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _buildGenderButton('その他'),
+            ),
+          ],
         ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _buildGenderButton('女性'),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _buildGenderButton('その他'),
-        ),
+        if (hasError) ...[
+          const SizedBox(height: 4),
+          Text(
+            _genderError!,
+            style: const TextStyle(
+              color: Colors.red,
+              fontSize: 12,
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -312,83 +483,123 @@ class _ProfileRegistrationScreenState extends State<ProfileRegistrationScreen> {
   }
 
   Widget _buildDatePicker() {
-    return GestureDetector(
-      onTap: () async {
-        final DateTime? picked = await showDatePicker(
-          context: context,
-          initialDate: DateTime.now(),
-          firstDate: DateTime(1900),
-          lastDate: DateTime.now(),
-        );
-        if (picked != null) {
-          setState(() {
-            _selectedBirthDate =
-                '${picked.year}/${picked.month.toString().padLeft(2, '0')}/${picked.day.toString().padLeft(2, '0')}';
-          });
-        }
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: AppColors.lightGray),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              _selectedBirthDate ?? '選択してください',
-              style: TextStyle(
-                color: _selectedBirthDate != null
-                    ? AppColors.textPrimary
-                    : AppColors.textSecondary,
-                fontSize: 15,
+    final hasError = _birthDateError != null && _birthDateError!.isNotEmpty;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        GestureDetector(
+          onTap: () async {
+            final DateTime? picked = await showDatePicker(
+              context: context,
+              initialDate: DateTime(2000, 1, 1),
+              firstDate: DateTime(1900),
+              lastDate: DateTime.now(),
+            );
+            if (picked != null) {
+              setState(() {
+                _selectedBirthDate =
+                    '${picked.year}/${picked.month.toString().padLeft(2, '0')}/${picked.day.toString().padLeft(2, '0')}';
+                _birthDateError = null; // Clear error on selection
+              });
+            }
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: hasError ? Colors.red : AppColors.lightGray,
+                width: hasError ? 2 : 1,
               ),
             ),
-            const Icon(Icons.calendar_today, color: AppColors.textSecondary, size: 20),
-          ],
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  _selectedBirthDate ?? '選択してください',
+                  style: TextStyle(
+                    color: _selectedBirthDate != null
+                        ? AppColors.textPrimary
+                        : AppColors.textSecondary,
+                    fontSize: 15,
+                  ),
+                ),
+                const Icon(Icons.calendar_today, color: AppColors.textSecondary, size: 20),
+              ],
+            ),
+          ),
         ),
-      ),
+        if (hasError) ...[
+          const SizedBox(height: 4),
+          Text(
+            _birthDateError!,
+            style: const TextStyle(
+              color: Colors.red,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ],
     );
   }
 
   Widget _buildPhoneField() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.lightGray),
-      ),
-      child: Row(
-        children: [
-          const Text(
-            '🇯🇵',
-            style: TextStyle(fontSize: 20),
+    final hasError = _phoneError != null && _phoneError!.isNotEmpty;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: hasError ? Colors.red : AppColors.lightGray,
+              width: hasError ? 2 : 1,
+            ),
           ),
-          const SizedBox(width: 8),
-          const Text(
-            '+81',
-            style: TextStyle(color: AppColors.textPrimary, fontSize: 15),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: TextField(
-              controller: _phoneController,
-              style: const TextStyle(color: AppColors.textPrimary, fontSize: 15),
-              keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(
-                border: InputBorder.none,
-                hintText: '9034881505',
-                hintStyle: TextStyle(color: AppColors.textSecondary),
-                isDense: true,
-                contentPadding: EdgeInsets.zero,
+          child: Row(
+            children: [
+              const Text(
+                '🇯🇵',
+                style: TextStyle(fontSize: 20),
               ),
+              const SizedBox(width: 8),
+              const Text(
+                '+81',
+                style: TextStyle(color: AppColors.textPrimary, fontSize: 15),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  controller: _phoneController,
+                  style: const TextStyle(color: AppColors.textPrimary, fontSize: 15),
+                  keyboardType: TextInputType.phone,
+                  onChanged: _validatePhone,
+                  decoration: const InputDecoration(
+                    border: InputBorder.none,
+                    hintText: '9034881505',
+                    hintStyle: TextStyle(color: AppColors.textSecondary),
+                    isDense: true,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (hasError) ...[
+          const SizedBox(height: 4),
+          Text(
+            _phoneError!,
+            style: const TextStyle(
+              color: Colors.red,
+              fontSize: 12,
             ),
           ),
         ],
-      ),
+      ],
     );
   }
 

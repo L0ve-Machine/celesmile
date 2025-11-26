@@ -16,6 +16,9 @@ const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 const app = express();
 
+// Trust proxy (needed for nginx reverse proxy)
+app.set('trust proxy', 1);
+
 // Strict CORS configuration
 const corsOptions = {
   origin: function (origin, callback) {
@@ -24,6 +27,7 @@ const corsOptions = {
 
     const allowedOrigins = [
       'https://celesmile.didit.me',
+      'https://celesmile-demo.duckdns.org',
       'http://localhost:3000',
       'http://localhost:8080',
       process.env.FRONTEND_URL
