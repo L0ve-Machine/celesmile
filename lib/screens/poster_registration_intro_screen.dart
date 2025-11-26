@@ -25,8 +25,8 @@ class _PosterRegistrationIntroScreenState extends State<PosterRegistrationIntroS
       final providerId = 'provider_${DateTime.now().millisecondsSinceEpoch}';
 
       // DID-IT の固定 verification URL（vendor_dataをURLパラメータで渡す）
-      final verificationUrl = 'https://verify.didit.me/session/NoLdqQCzM1ZK?vendor_data=$providerId';
-      const sessionId = 'NoLdqQCzM1ZK';
+      final verificationUrl = 'https://verify.didit.me/session/Ww4uO1uTsZ0Q?vendor_data=$providerId';
+      const sessionId = 'Ww4uO1uTsZ0Q';
 
       print('✅ Verification session info');
       print('Session ID: $sessionId');
