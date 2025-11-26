@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:url_launcher/url_launcher.dart';
-import 'dart:js' as js;
 import '../constants/colors.dart';
 import '../services/didit_service.dart';
+import '../utils/web_helper.dart' if (dart.library.html) '../utils/web_helper_web.dart';
 
 class PosterRegistrationIntroScreen extends StatefulWidget {
   const PosterRegistrationIntroScreen({super.key});
@@ -40,7 +40,7 @@ class _PosterRegistrationIntroScreenState extends State<PosterRegistrationIntroS
       // DIdit認証URLを開く
       if (kIsWeb) {
         // Web では JavaScript で window.open() を使用
-        js.context.callMethod('open', [verificationUrl, '_blank']);
+        openUrlInNewTab(verificationUrl);
       } else {
         // モバイルでは url_launcher を使用
         final url = Uri.parse(verificationUrl);
