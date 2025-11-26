@@ -82,6 +82,8 @@ class MySQLService {
     String? location,
     String? search,
     int? limit,
+    DateTime? date,
+    String? timeRange,
   }) async {
     final queryParams = <String, String>{};
     if (category != null) queryParams['category'] = category;
@@ -89,6 +91,8 @@ class MySQLService {
     if (location != null) queryParams['location'] = location;
     if (search != null) queryParams['search'] = search;
     if (limit != null) queryParams['limit'] = limit.toString();
+    if (date != null) queryParams['date'] = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    if (timeRange != null) queryParams['timeRange'] = timeRange;
 
     final uri = Uri.parse('$baseUrl/services').replace(queryParameters: queryParams);
     final response = await http.get(uri);
@@ -127,11 +131,12 @@ class MySQLService {
   }
 
   // Availability methods
-  Future<List<Map<String, dynamic>>> getAvailability(String providerId, {String? date}) async {
-    print('🔍 DEBUG [MySQLService.getAvailability]: Called with providerId = $providerId, date = $date');
+  Future<List<Map<String, dynamic>>> getAvailability(String providerId, {String? date, int? duration}) async {
+    print('🔍 DEBUG [MySQLService.getAvailability]: Called with providerId = $providerId, date = $date, duration = $duration');
 
     final queryParams = <String, String>{};
     if (date != null) queryParams['date'] = date;
+    if (duration != null) queryParams['duration'] = duration.toString();
 
     final uri = Uri.parse('$baseUrl/availability/$providerId').replace(queryParameters: queryParams);
     print('🔍 DEBUG [MySQLService]: API URL = $uri');

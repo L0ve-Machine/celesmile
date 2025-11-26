@@ -948,6 +948,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         location: _selectedLocation,
         search: _searchQuery.isNotEmpty ? _searchQuery : null,
         limit: 3,
+        date: _selectedDate,
+        timeRange: _selectedTimeRange,
       ),
       builder: (context, snapshot) {
         if (!snapshot.hasData) {

@@ -136,13 +136,16 @@ class StripeService {
         metadata: metadata,
       );
 
-      final clientSecret = paymentIntentData['client_secret'] as String?;
+      final clientSecret = paymentIntentData['clientSecret'] as String?;
       if (clientSecret == null) {
         throw Exception('Client secret not found in payment intent response');
       }
 
+      // PaymentIntent IDをclientSecretから抽出 (pi_xxxxx_secret_yyyyyy -> pi_xxxxx)
+      final paymentIntentId = clientSecret.split('_secret_')[0];
+
       // 2. PaymentMethodを使用してPaymentIntentを確認
-      // NOTE: This should be done via backend API, not directly from client
+      // Connected Account用にproviderIdも渡す
       final url = Uri.parse('$_baseUrl/stripe/confirm-payment-intent');
       final response = await http.post(
         url,
@@ -150,8 +153,9 @@ class StripeService {
           'Content-Type': 'application/json',
         },
         body: json.encode({
-          'payment_intent_id': paymentIntentData['id'],
-          'payment_method': paymentMethodId,
+          'paymentIntentId': paymentIntentId,
+          'paymentMethodId': paymentMethodId,
+          'providerId': providerId,
         }),
       );
 

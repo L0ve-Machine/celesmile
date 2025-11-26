@@ -1142,6 +1142,15 @@ class _BookingConfirmationScreenState
 
     // Save to MySQL database
     try {
+      // Parse duration from selected menu item (e.g., "60分" -> 60)
+      int duration = 60;
+      if (_selectedMenuItems.isNotEmpty && _selectedMenuItems[0].duration.isNotEmpty) {
+        final durationMatch = RegExp(r'(\d+)').firstMatch(_selectedMenuItems[0].duration);
+        if (durationMatch != null) {
+          duration = int.parse(durationMatch.group(1)!);
+        }
+      }
+
       final bookingData = {
         'id': booking.id,
         'provider_id': booking.providerId,
@@ -1150,9 +1159,11 @@ class _BookingConfirmationScreenState
         'customer_name': booking.customerName,
         'customer_phone': booking.customerPhone,
         'customer_email': booking.customerEmail,
+        'user_id': AuthService.currentUser,
         'service_name': booking.serviceName,
         'booking_date': booking.bookingDate.toIso8601String(),
         'time_slot': booking.timeSlot,
+        'duration': duration,
         'price': booking.price,
         'status': booking.status,
         'notes': booking.notes,

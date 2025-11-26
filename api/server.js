@@ -409,31 +409,71 @@ app.get('/api/salon/:salonId', async (req, res) => {
 // Get services with filters
 app.get('/api/services', async (req, res) => {
   try {
-    const { category, subcategory, location, search, limit } = req.query;
-    console.log('🔍 /api/services called with params:', { category, subcategory, location, search, limit });
+    const { category, subcategory, location, search, limit, date, timeRange } = req.query;
+    console.log('🔍 /api/services called with params:', { category, subcategory, location, search, limit, date, timeRange });
 
-    let query = 'SELECT * FROM services WHERE is_active = 1';
+    let query;
     const params = [];
 
+    if (date) {
+      // 日付が指定された場合、availability_calendarとJOINして空きがあるサービスのみ取得
+      query = `
+        SELECT DISTINCT s.*
+        FROM services s
+        INNER JOIN availability_calendar ac ON s.provider_id = ac.provider_id
+        WHERE s.is_active = 1
+          AND ac.date = ?
+          AND ac.is_available = 1
+      `;
+      params.push(date);
+
+      // 時間帯フィルター（例: "morning" -> 06:00-12:00）
+      if (timeRange) {
+        let timeCondition = '';
+        switch (timeRange) {
+          case 'morning':
+            timeCondition = "AND ac.time_slot >= '06:00' AND ac.time_slot < '12:00'";
+            break;
+          case 'afternoon':
+            timeCondition = "AND ac.time_slot >= '12:00' AND ac.time_slot < '18:00'";
+            break;
+          case 'evening':
+            timeCondition = "AND ac.time_slot >= '18:00'";
+            break;
+        }
+        query += timeCondition;
+      }
+    } else {
+      query = 'SELECT * FROM services WHERE is_active = 1';
+    }
+
     if (category) {
-      query += ' AND category = ?';
+      query += ' AND s.category = ?';
       params.push(category);
     }
     if (subcategory) {
-      query += ' AND subcategory = ?';
+      query += ' AND s.subcategory = ?';
       params.push(subcategory);
     }
     if (location) {
-      query += ' AND location = ?';
+      query += ' AND s.location = ?';
       params.push(location);
     }
     if (search) {
-      query += ' AND (title LIKE ? OR description LIKE ? OR provider_name LIKE ?)';
+      if (date) {
+        query += ' AND (s.title LIKE ? OR s.description LIKE ? OR s.provider_name LIKE ?)';
+      } else {
+        query += ' AND (title LIKE ? OR description LIKE ? OR provider_name LIKE ?)';
+      }
       const searchPattern = `%${search}%`;
       params.push(searchPattern, searchPattern, searchPattern);
     }
 
-    query += ' ORDER BY rating DESC, reviews_count DESC';
+    if (date) {
+      query += ' ORDER BY s.rating DESC, s.reviews_count DESC';
+    } else {
+      query += ' ORDER BY rating DESC, reviews_count DESC';
+    }
 
     if (limit) {
       query += ' LIMIT ?';
@@ -537,39 +577,150 @@ app.get('/api/availability/:providerId', authenticateToken, async (req, res) => 
   console.log('🔍 DEBUG [API availability]: Query params:', req.query);
 
   // 認証済みユーザーなら誰でも閲覧可能（購入者も含む）
-  // Authorization check removed - any authenticated user can view availability
   console.log('✅ DEBUG [API availability]: Access granted for viewing availability');
 
   try {
-    const { date } = req.query;
-    let query = 'SELECT * FROM availability_calendar WHERE provider_id = ?';
-    const params = [req.params.providerId];
+    const { date, duration } = req.query;
+    const providerId = req.params.providerId;
+    const requestedDuration = parseInt(duration) || 60;
+
+    // 1. まずavailability_calendarから空きスロットを取得
+    let query = 'SELECT * FROM availability_calendar WHERE provider_id = ? AND is_available = 1';
+    const params = [providerId];
 
     if (date) {
       query += ' AND date = ?';
       params.push(date);
     } else {
-      // Add filter to only get future dates if no specific date is provided
       query += ' AND date >= CURDATE()';
     }
 
     query += ' ORDER BY date, time_slot';
     console.log('🔍 DEBUG [API availability]: SQL query:', query);
-    console.log('🔍 DEBUG [API availability]: SQL params:', params);
 
-    const [rows] = await pool.query(query, params);
-    console.log('🔍 DEBUG [API availability]: Found', rows.length, 'slots');
+    const [availabilityRows] = await pool.query(query, params);
+    console.log('🔍 DEBUG [API availability]: Found', availabilityRows.length, 'available slots');
 
-    if (rows.length > 0) {
-      console.log('🔍 DEBUG [API availability]: First slot:', rows[0]);
+    // 2. 予約済みのスロットを取得（confirmed, pending）
+    let bookingQuery = `
+      SELECT DATE(booking_date) as date, time_slot, end_time_slot, duration
+      FROM bookings
+      WHERE provider_id = ?
+        AND status IN ('confirmed', 'pending')
+    `;
+    const bookingParams = [providerId];
+
+    if (date) {
+      bookingQuery += ' AND DATE(booking_date) = ?';
+      bookingParams.push(date);
+    } else {
+      bookingQuery += ' AND DATE(booking_date) >= CURDATE()';
     }
 
-    res.json(rows);
+    const [bookings] = await pool.query(bookingQuery, bookingParams);
+    console.log('🔍 DEBUG [API availability]: Found', bookings.length, 'existing bookings');
+
+    // 3. 予約とバッティングするスロットを除外
+    const filteredSlots = availabilityRows.filter(slot => {
+      const slotDate = new Date(slot.date).toISOString().split('T')[0];
+      const slotStart = slot.time_slot.split('-')[0]; // "10:00-11:00" -> "10:00"
+      const slotEnd = slot.time_slot.split('-')[1];   // "10:00-11:00" -> "11:00"
+
+      // このスロットが予約と重複するかチェック
+      const hasConflict = bookings.some(booking => {
+        const bookingDate = new Date(booking.date).toISOString().split('T')[0];
+        if (slotDate !== bookingDate) return false;
+
+        const bookingStart = booking.time_slot;
+        const bookingEnd = booking.end_time_slot || addMinutesToTime(booking.time_slot, booking.duration || 60);
+
+        // 時間の重複チェック
+        return timeOverlaps(slotStart, slotEnd, bookingStart, bookingEnd);
+      });
+
+      if (hasConflict) {
+        console.log(`🚫 Slot ${slotDate} ${slot.time_slot} blocked by booking`);
+        return false;
+      }
+
+      // 4. 施術時間に応じた連続スロットチェック
+      // 90分以上の場合、次のスロットも空いている必要がある
+      if (requestedDuration > 60) {
+        const slotsNeeded = Math.ceil(requestedDuration / 60);
+        const slotStartMinutes = timeToMinutes(slotStart);
+
+        // 必要なスロット数分、連続して空いているかチェック
+        for (let i = 1; i < slotsNeeded; i++) {
+          const nextSlotStart = minutesToTime(slotStartMinutes + (i * 60));
+          const nextSlotEnd = minutesToTime(slotStartMinutes + ((i + 1) * 60));
+
+          // 次のスロットが空きリストにあるか
+          const nextSlotAvailable = availabilityRows.some(s => {
+            const sDate = new Date(s.date).toISOString().split('T')[0];
+            const sStart = s.time_slot.split('-')[0];
+            return sDate === slotDate && sStart === nextSlotStart;
+          });
+
+          if (!nextSlotAvailable) {
+            console.log(`🚫 Slot ${slotDate} ${slot.time_slot} needs ${slotsNeeded} slots but next slot not available`);
+            return false;
+          }
+
+          // 次のスロットが予約で埋まっていないか
+          const nextSlotBooked = bookings.some(booking => {
+            const bookingDate = new Date(booking.date).toISOString().split('T')[0];
+            if (slotDate !== bookingDate) return false;
+
+            const bookingStart = booking.time_slot;
+            const bookingEnd = booking.end_time_slot || addMinutesToTime(booking.time_slot, booking.duration || 60);
+
+            return timeOverlaps(nextSlotStart, nextSlotEnd, bookingStart, bookingEnd);
+          });
+
+          if (nextSlotBooked) {
+            console.log(`🚫 Slot ${slotDate} ${slot.time_slot} - next slot ${nextSlotStart} is booked`);
+            return false;
+          }
+        }
+      }
+
+      return true;
+    });
+
+    console.log('🔍 DEBUG [API availability]: Returning', filteredSlots.length, 'available slots after filtering');
+    res.json(filteredSlots);
   } catch (error) {
     console.error('❌ DEBUG [API availability]: Error:', error);
     res.status(500).json({ error: error.message });
   }
 });
+
+// ヘルパー関数: 時間を分に変換
+function timeToMinutes(time) {
+  const [hours, minutes] = time.split(':').map(Number);
+  return hours * 60 + minutes;
+}
+
+// ヘルパー関数: 分を時間文字列に変換
+function minutesToTime(minutes) {
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
+}
+
+// ヘルパー関数: 時間に分を追加
+function addMinutesToTime(time, minutesToAdd) {
+  return minutesToTime(timeToMinutes(time) + minutesToAdd);
+}
+
+// ヘルパー関数: 時間範囲の重複チェック
+function timeOverlaps(start1, end1, start2, end2) {
+  const s1 = timeToMinutes(start1);
+  const e1 = timeToMinutes(end1);
+  const s2 = timeToMinutes(start2);
+  const e2 = timeToMinutes(end2);
+  return s1 < e2 && e1 > s2;
+}
 
 // Update availability
 app.post('/api/availability', authenticateToken, async (req, res) => {
@@ -624,20 +775,31 @@ app.post('/api/bookings', async (req, res) => {
   try {
     const {
       id, provider_id, salon_id, service_id, customer_name,
-      customer_phone, customer_email, service_name,
-      booking_date, time_slot, price, status, notes
+      customer_phone, customer_email, user_id, service_name,
+      booking_date, time_slot, duration, price, status, notes
     } = req.body;
+
+    // end_time_slotを計算（例: 10:00 + 90分 = 11:30）
+    let end_time_slot = null;
+    if (time_slot && duration) {
+      const [hours, minutes] = time_slot.split(':').map(Number);
+      const startMinutes = hours * 60 + minutes;
+      const endMinutes = startMinutes + parseInt(duration);
+      const endHours = Math.floor(endMinutes / 60);
+      const endMins = endMinutes % 60;
+      end_time_slot = `${endHours.toString().padStart(2, '0')}:${endMins.toString().padStart(2, '0')}`;
+    }
 
     await pool.query(
       `INSERT INTO bookings (
         id, provider_id, salon_id, service_id, customer_name,
-        customer_phone, customer_email, service_name,
-        booking_date, time_slot, price, status, notes
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        customer_phone, customer_email, user_id, service_name,
+        booking_date, time_slot, duration, end_time_slot, price, status, notes
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id, provider_id, salon_id, service_id, customer_name,
-        customer_phone, customer_email, service_name,
-        booking_date, time_slot, price, status, notes
+        customer_phone, customer_email, user_id, service_name,
+        booking_date, time_slot, duration || 60, end_time_slot, price, status, notes
       ]
     );
 
@@ -1070,7 +1232,9 @@ app.post('/api/stripe/connect/account', authenticateToken, async (req, res) => {
   try {
     const { email, providerId } = req.body;
 
-    // Create a Connect Express account
+    // Create a Connect Express account with manual payout schedule
+    // 翌月25日払いを実現するため、手動送金モードに設定
+    // 毎月25日にバッチ処理で送金を実行する
     const account = await stripe.accounts.create({
       type: 'express',
       country: 'JP',
@@ -1082,8 +1246,7 @@ app.post('/api/stripe/connect/account', authenticateToken, async (req, res) => {
       settings: {
         payouts: {
           schedule: {
-            interval: 'monthly',
-            monthly_anchor: 25, // Payout on the 25th of each month
+            interval: 'manual', // 手動送金モード（翌月25日払い対応）
           },
         },
       },
@@ -1195,6 +1358,47 @@ app.post('/api/stripe/payment-intent', async (req, res) => {
     console.error('❌ Error creating payment intent:', error.message);
     console.error('Full error:', error);
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Confirm Payment Intent with saved payment method (for Connected Account)
+app.post('/api/stripe/confirm-payment-intent', async (req, res) => {
+  try {
+    const { paymentIntentId, paymentMethodId, providerId } = req.body;
+    console.log('🔵 Confirming Payment Intent:', paymentIntentId);
+
+    // Get provider's stripe_account_id
+    const [rows] = await pool.query(
+      'SELECT stripe_account_id FROM providers WHERE id = ?',
+      [providerId]
+    );
+
+    if (rows.length === 0 || !rows[0].stripe_account_id) {
+      return res.status(400).json({ error: 'Provider Stripe account not found' });
+    }
+
+    const stripeAccountId = rows[0].stripe_account_id;
+
+    // Confirm the PaymentIntent on the connected account
+    const paymentIntent = await stripe.paymentIntents.confirm(
+      paymentIntentId,
+      {
+        payment_method: paymentMethodId,
+      },
+      {
+        stripeAccount: stripeAccountId, // Important: specify connected account
+      }
+    );
+
+    console.log('✅ Payment confirmed:', paymentIntent.status);
+
+    res.json({
+      success: paymentIntent.status === 'succeeded',
+      status: paymentIntent.status,
+    });
+  } catch (error) {
+    console.error('❌ Error confirming payment:', error.message);
     res.status(500).json({ error: error.message });
   }
 });
