@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../constants/colors.dart';
 import '../services/auth_service.dart';
+import '../services/mysql_service.dart';
 
 class AccountSetupScreen extends StatefulWidget {
   const AccountSetupScreen({super.key});
@@ -285,11 +286,6 @@ class _AccountSetupScreenState extends State<AccountSetupScreen> {
       return;
     }
 
-    if (AuthService.userExists(username)) {
-      _showError('このユーザー名は既に使用されています');
-      return;
-    }
-
     if (password.isEmpty) {
       _showError('パスワードを入力してください');
       return;
@@ -309,15 +305,32 @@ class _AccountSetupScreenState extends State<AccountSetupScreen> {
       _isLoading = true;
     });
 
-    // アカウント作成
-    final result = await AuthService.createAccount(username, password);
+    // サーバーにアカウント作成（DBに保存）
+    final result = await MySQLService.instance.registerAccount(
+      username: username,
+      password: password,
+      phone: AuthService.currentUserPhone,
+    );
 
     setState(() {
       _isLoading = false;
     });
 
     if (result['success'] == true) {
-      // 自動ログイン成功 - プロフィール登録画面へ
+      // トークンとプロバイダーIDを保存
+      final token = result['token'] as String?;
+      final providerId = result['providerId'] as String?;
+
+      if (token != null && providerId != null) {
+        // AuthServiceにログイン状態を設定
+        await AuthService.setLoginState(
+          username: username,
+          token: token,
+          providerId: providerId,
+        );
+      }
+
+      // プロフィール登録画面へ
       if (mounted) {
         Navigator.pushReplacementNamed(
           context,

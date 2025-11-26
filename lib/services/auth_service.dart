@@ -256,6 +256,25 @@ class AuthService {
     return _users.containsKey(username);
   }
 
+  // 新規登録後のログイン状態を設定
+  static Future<void> setLoginState({
+    required String username,
+    required String token,
+    required String providerId,
+  }) async {
+    _currentUser = username;
+    _currentToken = token;
+    _userProviderIds[username] = providerId;
+
+    // SharedPreferencesに保存
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('auth_token', token);
+    await prefs.setString('current_user', username);
+    await prefs.setString('provider_id_$username', providerId);
+
+    print('✅ Login state set: $username (provider: $providerId)');
+  }
+
   // 現在のユーザー取得
   static String? get currentUser => _currentUser;
 

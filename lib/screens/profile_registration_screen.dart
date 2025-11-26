@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../constants/colors.dart';
 import '../services/auth_service.dart';
+import '../services/mysql_service.dart';
 
 class ProfileRegistrationScreen extends StatefulWidget {
   final bool isEditMode;
@@ -1007,7 +1008,7 @@ class _ProfileRegistrationScreenState extends State<ProfileRegistrationScreen> {
       return;
     }
 
-    // プロフィール保存
+    // ローカルにプロフィール保存
     final profile = UserProfile()
       ..name = _nameController.text.trim()
       ..gender = _selectedGender
@@ -1022,6 +1023,30 @@ class _ProfileRegistrationScreenState extends State<ProfileRegistrationScreen> {
       ..building = _buildingController.text.trim();
 
     await AuthService.saveProfile(profile);
+
+    // サーバーのDBにもプロフィールを保存
+    final providerId = AuthService.currentProviderId;
+    if (providerId != null) {
+      final result = await MySQLService.instance.updateProviderProfile(
+        providerId: providerId,
+        name: _nameController.text.trim(),
+        gender: _selectedGender,
+        birthDate: _selectedBirthDate,
+        phone: _phoneController.text.trim(),
+        email: _emailController.text.trim(),
+        postalCode: _postalCodeController.text.trim(),
+        prefecture: _prefectureController.text.trim(),
+        city: _cityController.text.trim(),
+        address: _addressController.text.trim(),
+        building: _buildingController.text.trim(),
+        inviteCode: _inviteCodeController.text.trim(),
+      );
+
+      if (result['success'] != true) {
+        print('⚠️ Failed to save profile to server: ${result['error']}');
+        // サーバー保存に失敗してもローカルには保存されているので続行
+      }
+    }
 
     // マイページから来た場合は戻る、それ以外はダッシュボードへ
     if (Navigator.canPop(context)) {

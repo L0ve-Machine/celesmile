@@ -511,4 +511,102 @@ class MySQLService {
       throw Exception('Failed to create payment intent: $e');
     }
   }
+
+  // Register new account (after SMS verification)
+  Future<Map<String, dynamic>> registerAccount({
+    required String username,
+    required String password,
+    String? phone,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/register'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'username': username,
+          'password': password,
+          'phone': phone,
+        }),
+      );
+
+      final data = json.decode(response.body);
+
+      if (response.statusCode == 200 && data['success'] == true) {
+        return {
+          'success': true,
+          'providerId': data['providerId'],
+          'token': data['token'],
+        };
+      } else if (response.statusCode == 409) {
+        return {
+          'success': false,
+          'error': data['error'] ?? 'このユーザー名は既に使用されています',
+        };
+      } else {
+        return {
+          'success': false,
+          'error': data['error'] ?? 'アカウント作成に失敗しました',
+        };
+      }
+    } catch (e) {
+      print('Registration error: $e');
+      return {
+        'success': false,
+        'error': 'アカウント作成中にエラーが発生しました',
+      };
+    }
+  }
+
+  // Update provider profile
+  Future<Map<String, dynamic>> updateProviderProfile({
+    required String providerId,
+    required String name,
+    String? gender,
+    String? birthDate,
+    String? phone,
+    required String email,
+    String? postalCode,
+    String? prefecture,
+    String? city,
+    String? address,
+    String? building,
+    String? inviteCode,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/providers/$providerId/profile'),
+        headers: _getHeaders(includeAuth: true),
+        body: json.encode({
+          'name': name,
+          'gender': gender,
+          'birthDate': birthDate,
+          'phone': phone,
+          'email': email,
+          'postalCode': postalCode,
+          'prefecture': prefecture,
+          'city': city,
+          'address': address,
+          'building': building,
+          'inviteCode': inviteCode,
+        }),
+      );
+
+      final data = json.decode(response.body);
+
+      if (response.statusCode == 200 && data['success'] == true) {
+        return {'success': true};
+      } else {
+        return {
+          'success': false,
+          'error': data['error'] ?? 'プロフィール更新に失敗しました',
+        };
+      }
+    } catch (e) {
+      print('Profile update error: $e');
+      return {
+        'success': false,
+        'error': 'プロフィール更新中にエラーが発生しました',
+      };
+    }
+  }
 }

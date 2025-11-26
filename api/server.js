@@ -1044,6 +1044,137 @@ app.post('/api/login', [
   }
 });
 
+// Provider registration (account creation)
+app.post('/api/register', [
+  body('username').trim().isLength({ min: 4 }).withMessage('Username must be at least 4 characters'),
+  body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters'),
+  body('phone').optional().trim()
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, errors: errors.array() });
+    }
+
+    const { username, password, phone } = req.body;
+
+    // Check if username already exists
+    const [existing] = await pool.query(
+      'SELECT id FROM providers WHERE id = ? OR email = ?',
+      [username, username]
+    );
+
+    if (existing.length > 0) {
+      return res.status(409).json({
+        success: false,
+        error: 'このユーザー名は既に使用されています'
+      });
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Generate provider ID
+    const providerId = `provider_${Date.now()}`;
+
+    // Insert new provider (minimal data - profile will be updated later)
+    await pool.query(
+      `INSERT INTO providers (id, email, password, phone, verified, created_at)
+       VALUES (?, ?, ?, ?, 0, NOW())`,
+      [providerId, username, hashedPassword, phone || null]
+    );
+
+    // Generate JWT token
+    const token = jwt.sign(
+      {
+        id: providerId,
+        email: username,
+        role: 'provider'
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    console.log(`✅ New account registered: ${username} (${providerId})`);
+
+    res.json({
+      success: true,
+      providerId: providerId,
+      token: token
+    });
+  } catch (error) {
+    console.error('Registration error:', error);
+    res.status(500).json({ success: false, error: 'Registration failed' });
+  }
+});
+
+// Update provider profile (for profile registration after account creation)
+app.post('/api/providers/:providerId/profile', authenticateToken, async (req, res) => {
+  try {
+    const { providerId } = req.params;
+
+    // Check authorization
+    if (req.user.id !== providerId && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    const {
+      name,
+      gender,
+      birthDate,
+      phone,
+      email,
+      postalCode,
+      prefecture,
+      city,
+      address,
+      building,
+      inviteCode
+    } = req.body;
+
+    // Update provider profile
+    await pool.query(
+      `UPDATE providers SET
+        name = ?,
+        gender = ?,
+        birth_date = ?,
+        phone = ?,
+        email = ?,
+        postal_code = ?,
+        prefecture = ?,
+        city = ?,
+        address = ?,
+        building = ?,
+        invite_code = ?
+       WHERE id = ?`,
+      [
+        name,
+        gender,
+        birthDate,
+        phone,
+        email,
+        postalCode,
+        prefecture,
+        city,
+        address,
+        building,
+        inviteCode,
+        providerId
+      ]
+    );
+
+    console.log(`✅ Profile updated for provider: ${providerId}`);
+
+    res.json({
+      success: true,
+      message: 'Profile updated successfully'
+    });
+  } catch (error) {
+    console.error('Profile update error:', error);
+    res.status(500).json({ success: false, error: 'Profile update failed' });
+  }
+});
+
 // Upload profile image
 app.post('/api/upload/profile-image', upload.single('image'), async (req, res) => {
   try {
