@@ -45,24 +45,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           },
           children: [
             _buildWelcomePage(),
-            _buildHowToPage(
-              centerImage: 'assets/images/2.png',
-              title: '希望のサービスを選択',
-              subtitle: '依頼内容の詳細を入力',
-              pageIndex: 1,
-            ),
-            _buildHowToPage(
-              centerImage: 'assets/images/3.png',
-              title: '希望の日時を選択',
-              subtitle: '金額を確認して依頼完了！',
-              pageIndex: 2,
-            ),
-            _buildHowToPage(
-              centerImage: 'assets/images/4.png',
-              title: 'サービス実施',
-              subtitle: '指定日に家事キャストを待つだけ！',
-              pageIndex: 3,
-            ),
+            _buildThreeStepsPage(),
           ],
         ),
       ),
@@ -256,14 +239,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  Widget _buildHowToPage({
-    required String centerImage,
-    required String title,
-    required String subtitle,
-    required int pageIndex,
-  }) {
-    bool isLastPage = pageIndex == 3;
-
+  // 簡単3ステップページ
+  Widget _buildThreeStepsPage() {
     return Stack(
       children: [
         Column(
@@ -305,109 +282,95 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ],
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 40),
 
-            // Main content - image with border around its actual size
-            Expanded(
-              flex: 3,
-              child: Center(
-                child: Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 20),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: Colors.black,
-                      width: 2,
-                    ),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: Image.asset(
-                      centerImage,
-                      fit: BoxFit.contain,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            // Title and subtitle
+            // Title
             Text(
-              title,
+              '簡単3ステップ',
               style: TextStyle(
-                fontSize: 24,
+                fontSize: 28,
                 fontWeight: FontWeight.bold,
-                color: Colors.black,
+                color: AppColors.primaryOrange,
               ),
             ),
+
             const SizedBox(height: 8),
+
             Text(
-              subtitle,
+              'すぐに始められます',
               style: TextStyle(
                 fontSize: 16,
                 color: Colors.grey[600],
               ),
             ),
 
-            const SizedBox(height: 32),
+            const SizedBox(height: 40),
 
-            // Page indicator dots
+            // 3 Steps
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
+                  children: [
+                    _buildStepItem(
+                      stepNumber: 1,
+                      icon: Icons.touch_app_rounded,
+                      title: '希望のサービスを選択',
+                      subtitle: '依頼内容の詳細を入力',
+                      imagePath: 'assets/images/2.png',
+                    ),
+                    const SizedBox(height: 16),
+                    _buildStepItem(
+                      stepNumber: 2,
+                      icon: Icons.calendar_today_rounded,
+                      title: '希望の日時を選択',
+                      subtitle: '金額を確認して依頼完了！',
+                      imagePath: 'assets/images/3.png',
+                    ),
+                    const SizedBox(height: 16),
+                    _buildStepItem(
+                      stepNumber: 3,
+                      icon: Icons.home_rounded,
+                      title: 'サービス実施',
+                      subtitle: '指定日に家事キャストを待つだけ！',
+                      imagePath: 'assets/images/4.png',
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // Page indicator
             _buildPageIndicator(),
 
             const SizedBox(height: 32),
 
-            // Single navigation button
+            // Register Button
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
+              padding: const EdgeInsets.symmetric(horizontal: 24),
               child: SizedBox(
                 width: double.infinity,
-                child: isLastPage
-                    ? ElevatedButton(
-                        onPressed: () {
-                          Navigator.pushNamed(context, '/phone-verification');
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primaryOrange,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(30),
-                          ),
-                          elevation: 0,
-                        ),
-                        child: Text(
-                          '新規登録へ',
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      )
-                    : OutlinedButton(
-                        onPressed: () {
-                          _pageController.nextPage(
-                            duration: const Duration(milliseconds: 300),
-                            curve: Curves.easeInOut,
-                          );
-                        },
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          side: BorderSide(color: Colors.grey[400]!, width: 1),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(30),
-                          ),
-                        ),
-                        child: Text(
-                          '次へ進む',
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: Colors.black,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pushNamed(context, '/phone-verification');
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryOrange,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(30),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: Text(
+                    '新規登録へ',
+                    style: TextStyle(
+                      fontSize: 18,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
               ),
             ),
 
@@ -418,10 +381,87 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
+  Widget _buildStepItem({
+    required int stepNumber,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required String imagePath,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          // Step number circle
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppColors.primaryOrange,
+            ),
+            child: Center(
+              child: Text(
+                '$stepNumber',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          // Text content
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Icon
+          Icon(
+            icon,
+            size: 32,
+            color: AppColors.primaryOrange.withOpacity(0.7),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildPageIndicator() {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
-      children: List.generate(4, (index) {
+      children: List.generate(2, (index) {
         bool isActive = _currentPage == index;
         return Container(
           margin: const EdgeInsets.symmetric(horizontal: 4),
