@@ -1021,13 +1021,14 @@ app.post('/api/login', [
 
     console.log(`✅ Successful login: ${email}, verified: ${provider.verified}`);
 
-    // If not verified, don't return provider data (treat as customer)
+    // If not verified, return as user but include provider_id for profile loading
     if (provider.verified === 0) {
       res.json({
         success: true,
         user: {
           email: provider.email,
-          name: provider.name
+          name: provider.name,
+          provider_id: provider.id
         },
         token: token
       });

@@ -512,6 +512,24 @@ class MySQLService {
     }
   }
 
+  // Get provider profile from server
+  Future<Map<String, dynamic>?> getProviderProfile(String providerId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/providers/$providerId'),
+        headers: _getHeaders(includeAuth: true),
+      );
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      }
+      return null;
+    } catch (e) {
+      print('Error fetching provider profile: $e');
+      return null;
+    }
+  }
+
   // Register new account (after SMS verification)
   Future<Map<String, dynamic>> registerAccount({
     required String username,

@@ -198,26 +198,39 @@ class AuthService {
         // Get user/provider data
         final provider = result['provider'];
         final user = result['user'];
+        String? providerId;
 
         if (provider != null) {
           // Provider account (verified)
           _currentUser = provider['email'] ?? username;
-          _userProviderIds[_currentUser!] = provider['id'];
-          await prefs.setString('provider_id_$_currentUser', provider['id']);
-          print('✅ Set as provider: ${provider['id']}');
+          providerId = provider['id'];
+          _userProviderIds[_currentUser!] = providerId!;
+          await prefs.setString('provider_id_$_currentUser', providerId);
+          print('✅ Set as provider: $providerId');
         } else if (user != null) {
           // Customer account (unverified or regular user)
           _currentUser = user['email'] ?? username;
-          // Remove any old provider status
-          await prefs.remove('provider_id_$_currentUser');
-          _userProviderIds.remove(_currentUser);
+          // Check if there's a provider ID in the response
+          providerId = user['provider_id'];
+          if (providerId != null) {
+            _userProviderIds[_currentUser!] = providerId;
+            await prefs.setString('provider_id_$_currentUser', providerId);
+          } else {
+            await prefs.remove('provider_id_$_currentUser');
+            _userProviderIds.remove(_currentUser);
+          }
           print('✅ Set as customer: $_currentUser');
         } else {
           _currentUser = username;
         }
 
-        // Load user data
+        // Load user data from local storage first
         await _loadUserData(_currentUser!);
+
+        // Then load profile from server if we have a provider ID
+        if (providerId != null) {
+          await _loadProfileFromServer(providerId);
+        }
 
         print('✅ Login successful: $_currentUser');
         return true;
@@ -273,6 +286,37 @@ class AuthService {
     await prefs.setString('provider_id_$username', providerId);
 
     print('✅ Login state set: $username (provider: $providerId)');
+  }
+
+  // サーバーからプロフィールを読み込む
+  static Future<void> _loadProfileFromServer(String providerId) async {
+    try {
+      final serverProfile = await MySQLService.instance.getProviderProfile(providerId);
+      if (serverProfile != null && _currentUser != null) {
+        // サーバーのデータからUserProfileを作成
+        final profile = UserProfile()
+          ..name = serverProfile['name']
+          ..gender = serverProfile['gender']
+          ..birthDate = serverProfile['birth_date']
+          ..phone = serverProfile['phone']
+          ..email = serverProfile['email']
+          ..postalCode = serverProfile['postal_code']
+          ..prefecture = serverProfile['prefecture']
+          ..city = serverProfile['city']
+          ..address = serverProfile['address']
+          ..building = serverProfile['building']
+          ..inviteCode = serverProfile['invite_code'];
+
+        // ローカルに保存
+        _profiles[_currentUser!] = profile;
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('profile_$_currentUser', jsonEncode(profile.toJson()));
+
+        print('✅ Profile loaded from server for: $_currentUser');
+      }
+    } catch (e) {
+      print('⚠️ Failed to load profile from server: $e');
+    }
   }
 
   // 現在のユーザー取得
