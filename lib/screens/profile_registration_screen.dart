@@ -28,6 +28,11 @@ class _ProfileRegistrationScreenState extends State<ProfileRegistrationScreen> {
   String? _selectedGender;
   String? _selectedBirthDate;
 
+  // Invite code validation state
+  bool _isValidatingInviteCode = false;
+  bool? _inviteCodeValid;
+  String? _inviterName;
+
   // Terms and conditions acceptance
   bool _acceptTerms = false;
   bool _acceptAntiSocial = false;
@@ -39,6 +44,7 @@ class _ProfileRegistrationScreenState extends State<ProfileRegistrationScreen> {
   String? _birthDateError;
   String? _phoneError;
   String? _emailError;
+  String? _inviteCodeError;
   String? _postalCodeError;
   String? _prefectureError;
   String? _cityError;
@@ -122,6 +128,46 @@ class _ProfileRegistrationScreenState extends State<ProfileRegistrationScreen> {
     });
   }
 
+  // Validate invite code against API
+  Future<void> _validateInviteCode(String code) async {
+    if (code.trim().isEmpty) {
+      setState(() {
+        _inviteCodeValid = null;
+        _inviteCodeError = null;
+        _inviterName = null;
+      });
+      return;
+    }
+
+    setState(() {
+      _isValidatingInviteCode = true;
+      _inviteCodeError = null;
+    });
+
+    try {
+      final result = await MySQLService.instance.validateInviteCode(code.trim().toUpperCase());
+
+      setState(() {
+        _isValidatingInviteCode = false;
+        if (result['valid'] == true) {
+          _inviteCodeValid = true;
+          _inviterName = result['inviterName'];
+          _inviteCodeError = null;
+        } else {
+          _inviteCodeValid = false;
+          _inviterName = null;
+          _inviteCodeError = result['error'] ?? '招待コードが見つかりません';
+        }
+      });
+    } catch (e) {
+      setState(() {
+        _isValidatingInviteCode = false;
+        _inviteCodeValid = false;
+        _inviteCodeError = 'エラーが発生しました';
+      });
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -136,7 +182,6 @@ class _ProfileRegistrationScreenState extends State<ProfileRegistrationScreen> {
       _selectedBirthDate = profile.birthDate;
       _phoneController.text = profile.phone ?? '';
       _emailController.text = profile.email ?? '';
-      _inviteCodeController.text = profile.inviteCode ?? '';
       _postalCodeController.text = profile.postalCode ?? '';
       _prefectureController.text = profile.prefecture ?? '';
       _cityController.text = profile.city ?? '';
@@ -298,13 +343,17 @@ class _ProfileRegistrationScreenState extends State<ProfileRegistrationScreen> {
 
             const SizedBox(height: 20),
 
-            // 招待コード
-            _buildInviteCodeSection(),
+            // 招待コード (only show in registration mode, not edit mode)
+            if (!widget.isEditMode) ...[
+              _buildInviteCodeSection(),
+              const SizedBox(height: 20),
+            ],
 
-            const SizedBox(height: 30),
-
-            // Terms and conditions acceptance
-            _buildTermsSection(),
+            // Terms and conditions acceptance (only show in registration mode, not edit mode)
+            if (!widget.isEditMode) ...[
+              _buildTermsSection(),
+              const SizedBox(height: 20),
+            ],
 
             const SizedBox(height: 30),
 
@@ -605,53 +654,180 @@ class _ProfileRegistrationScreenState extends State<ProfileRegistrationScreen> {
   }
 
   Widget _buildInviteCodeSection() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.lightBeige.withOpacity(0.5),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.secondaryOrange.withOpacity(0.3)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            '招待コード',
-            style: TextStyle(
-              color: AppColors.textPrimary,
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
+    // Invite code feature is temporarily disabled
+    const bool isInviteCodeEnabled = false;
+
+    return Opacity(
+      opacity: isInviteCodeEnabled ? 1.0 : 0.6,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.lightBeige.withOpacity(0.5),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: AppColors.secondaryOrange.withOpacity(0.3)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.card_giftcard, color: AppColors.primaryOrange, size: 20),
+                const SizedBox(width: 8),
+                const Text(
+                  '招待',
+                  style: TextStyle(
+                    color: AppColors.textPrimary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                if (!isInviteCodeEnabled) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Text(
+                      '準備中',
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'お友達から受け取った招待\nコードを入力してください',
-            style: TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: 12,
-              height: 1.5,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppColors.lightGray),
-            ),
-            child: TextField(
-              controller: _inviteCodeController,
-              style: const TextStyle(color: AppColors.textPrimary, fontSize: 15),
-              decoration: const InputDecoration(
-                border: InputBorder.none,
-                hintText: '',
-                isDense: true,
-                contentPadding: EdgeInsets.zero,
+            const SizedBox(height: 8),
+            Text(
+              isInviteCodeEnabled
+                  ? '招待コードをお持ちの方は入力してください'
+                  : '招待機能は現在準備中です',
+              style: const TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 12,
+                height: 1.5,
               ),
             ),
-          ),
-        ],
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: isInviteCodeEnabled ? Colors.white : Colors.grey[100],
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: _inviteCodeError != null
+                      ? Colors.red
+                      : _inviteCodeValid == true
+                          ? Colors.green
+                          : AppColors.lightGray,
+                  width: _inviteCodeValid == true || _inviteCodeError != null ? 2 : 1,
+                ),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _inviteCodeController,
+                      enabled: isInviteCodeEnabled,
+                      style: TextStyle(
+                        color: isInviteCodeEnabled ? AppColors.textPrimary : Colors.grey,
+                        fontSize: 15,
+                        letterSpacing: 2,
+                      ),
+                      textCapitalization: TextCapitalization.characters,
+                      decoration: InputDecoration(
+                        border: InputBorder.none,
+                        hintText: '例: ABCD1234',
+                        hintStyle: TextStyle(color: isInviteCodeEnabled ? AppColors.textSecondary : Colors.grey[400]),
+                        isDense: true,
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                      onChanged: isInviteCodeEnabled ? (value) {
+                        // Clear validation when typing
+                        if (_inviteCodeValid != null || _inviteCodeError != null) {
+                          setState(() {
+                            _inviteCodeValid = null;
+                            _inviteCodeError = null;
+                            _inviterName = null;
+                          });
+                        }
+                      } : null,
+                    ),
+                  ),
+                  if (_isValidatingInviteCode && isInviteCodeEnabled)
+                    const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.primaryOrange,
+                      ),
+                    )
+                  else if (_inviteCodeValid == true && isInviteCodeEnabled)
+                    const Icon(Icons.check_circle, color: Colors.green, size: 24)
+                  else if (_inviteCodeError != null && isInviteCodeEnabled)
+                    const Icon(Icons.error, color: Colors.red, size: 24)
+                  else
+                    TextButton(
+                      onPressed: isInviteCodeEnabled && _inviteCodeController.text.trim().isNotEmpty
+                          ? () => _validateInviteCode(_inviteCodeController.text)
+                          : null,
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        minimumSize: Size.zero,
+                      ),
+                      child: Text(
+                        '確認',
+                        style: TextStyle(
+                          color: isInviteCodeEnabled && _inviteCodeController.text.trim().isNotEmpty
+                              ? AppColors.primaryOrange
+                              : Colors.grey,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            if (_inviteCodeValid == true && _inviterName != null && isInviteCodeEnabled) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.check, color: Colors.green, size: 16),
+                    const SizedBox(width: 4),
+                    Text(
+                      '$_inviterNameさんからの招待コードです',
+                      style: const TextStyle(
+                        color: Colors.green,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            if (_inviteCodeError != null && isInviteCodeEnabled) ...[
+              const SizedBox(height: 8),
+              Text(
+                _inviteCodeError!,
+                style: const TextStyle(
+                  color: Colors.red,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -883,9 +1059,9 @@ class _ProfileRegistrationScreenState extends State<ProfileRegistrationScreen> {
           elevation: 0,
           disabledBackgroundColor: Colors.grey[400],
         ),
-        child: const Text(
-          '登録',
-          style: TextStyle(
+        child: Text(
+          widget.isEditMode ? '編集' : '登録',
+          style: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w600,
             color: Colors.white,
@@ -1015,7 +1191,6 @@ class _ProfileRegistrationScreenState extends State<ProfileRegistrationScreen> {
       ..birthDate = _selectedBirthDate
       ..phone = _phoneController.text.trim()
       ..email = _emailController.text.trim()
-      ..inviteCode = _inviteCodeController.text.trim()
       ..postalCode = _postalCodeController.text.trim()
       ..prefecture = _prefectureController.text.trim()
       ..city = _cityController.text.trim()
@@ -1027,7 +1202,7 @@ class _ProfileRegistrationScreenState extends State<ProfileRegistrationScreen> {
     // サーバーのDBにもプロフィールを保存
     final providerId = AuthService.currentUserProviderId;
     if (providerId != null) {
-      final result = await MySQLService.instance.updateProviderProfile(
+      final result = await MySQLService.instance.updateProviderProfileFull(
         providerId: providerId,
         name: _nameController.text.trim(),
         gender: _selectedGender,
@@ -1039,12 +1214,35 @@ class _ProfileRegistrationScreenState extends State<ProfileRegistrationScreen> {
         city: _cityController.text.trim(),
         address: _addressController.text.trim(),
         building: _buildingController.text.trim(),
-        inviteCode: _inviteCodeController.text.trim(),
       );
 
       if (result['success'] != true) {
         print('⚠️ Failed to save profile to server: ${result['error']}');
         // サーバー保存に失敗してもローカルには保存されているので続行
+      }
+
+      // Apply invite code if validated (only in registration mode)
+      if (!widget.isEditMode && _inviteCodeValid == true && _inviteCodeController.text.trim().isNotEmpty) {
+        final inviteResult = await MySQLService.instance.applyInviteCode(
+          _inviteCodeController.text.trim().toUpperCase(),
+          providerId,
+        );
+
+        if (inviteResult['success'] == true) {
+          print('✅ Invite code applied successfully');
+          // Show success message
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(inviteResult['message'] ?? '招待コードが適用されました！'),
+                backgroundColor: Colors.green,
+                duration: const Duration(seconds: 3),
+              ),
+            );
+          }
+        } else {
+          print('⚠️ Failed to apply invite code: ${inviteResult['error']}');
+        }
       }
     }
 

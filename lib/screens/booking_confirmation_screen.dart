@@ -12,6 +12,7 @@ import '../services/payment_method_service.dart';
 import '../services/chat_service.dart';
 import '../services/mysql_service.dart';
 import '../services/profile_image_service.dart';
+import '../services/notification_service.dart';
 
 class BookingConfirmationScreen extends StatefulWidget {
   const BookingConfirmationScreen({super.key});
@@ -1367,6 +1368,20 @@ class _BookingConfirmationScreenState
             bookingId: bookingId,
           );
           print('   - チャットルーム作成完了: ${chatRoom.id}');
+
+          // Send notification to provider about new booking
+          print('   - プロバイダーへ通知を送信');
+          final userProfile = AuthService.currentUserProfile;
+          final notificationService = NotificationService();
+          await notificationService.notifyProviderNewBooking(
+            providerId: _service!.providerId!,
+            bookingId: bookingId,
+            customerName: userProfile?.name ?? currentUser,
+            serviceName: _service!.title,
+            bookingDate: _selectedDate ?? DateTime.now().add(const Duration(days: 1)),
+            timeSlot: _selectedTimeSlot ?? _service!.time,
+          );
+          print('   - プロバイダーへの通知送信完了');
         } else {
           print('   ⚠️ currentUserがnull');
         }

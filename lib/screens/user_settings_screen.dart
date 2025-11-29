@@ -1,8 +1,77 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 import '../constants/colors.dart';
+import '../services/auth_service.dart';
+import '../services/mysql_service.dart';
 
-class UserSettingsScreen extends StatelessWidget {
+class UserSettingsScreen extends StatefulWidget {
   const UserSettingsScreen({super.key});
+
+  @override
+  State<UserSettingsScreen> createState() => _UserSettingsScreenState();
+}
+
+class _UserSettingsScreenState extends State<UserSettingsScreen> {
+  String? _myInviteCode;
+  bool _isLoadingInviteCode = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMyInviteCode();
+  }
+
+  Future<void> _loadMyInviteCode() async {
+    final providerId = AuthService.currentUserProviderId;
+    if (providerId == null) return;
+
+    setState(() => _isLoadingInviteCode = true);
+
+    try {
+      final code = await MySQLService.instance.getInviteCode(providerId);
+      if (mounted) {
+        setState(() {
+          _myInviteCode = code;
+          _isLoadingInviteCode = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingInviteCode = false);
+      }
+    }
+  }
+
+  void _shareInviteCode() {
+    if (_myInviteCode == null) return;
+
+    final message = '''
+セレスマイルに招待します！
+
+招待コード: $_myInviteCode
+
+このコードを使って登録すると、あなたと私に500円オフクーポンがもらえます！
+
+アプリをダウンロード:
+https://celesmile-demo.duckdns.org
+''';
+
+    Share.share(message);
+  }
+
+  void _copyInviteCode() {
+    if (_myInviteCode == null) return;
+
+    Clipboard.setData(ClipboardData(text: _myInviteCode!));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('招待コードをコピーしました'),
+        backgroundColor: AppColors.primaryOrange,
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -67,16 +136,7 @@ class UserSettingsScreen extends StatelessWidget {
             },
           ),
           _buildSectionHeader('友達招待'),
-          _buildMenuItem(
-            context,
-            '友達を招待する',
-            () {},
-          ),
-          _buildMenuItem(
-            context,
-            '招待コードを入力',
-            () {},
-          ),
+          _buildInviteCodeCard(),
           _buildSectionHeader('その他'),
           _buildMenuItem(
             context,
@@ -166,6 +226,119 @@ class UserSettingsScreen extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildInviteCodeCard() {
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppColors.primaryOrange.withOpacity(0.1),
+            AppColors.secondaryOrange.withOpacity(0.1),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.primaryOrange.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.card_giftcard, color: AppColors.primaryOrange, size: 24),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  '友達を招待して500円GET！',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'あなたの招待コードで友達が登録すると、\nあなたと友達に500円オフクーポンがもらえます！',
+            style: TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary,
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: AppColors.lightGray),
+            ),
+            child: Row(
+              children: [
+                const Text(
+                  'あなたの招待コード:',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _isLoadingInviteCode
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: AppColors.primaryOrange,
+                          ),
+                        )
+                      : Text(
+                          _myInviteCode ?? '---',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primaryOrange,
+                            letterSpacing: 2,
+                          ),
+                        ),
+                ),
+                IconButton(
+                  onPressed: _myInviteCode != null ? _copyInviteCode : null,
+                  icon: const Icon(Icons.copy, size: 20),
+                  color: AppColors.primaryOrange,
+                  tooltip: 'コピー',
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _myInviteCode != null ? _shareInviteCode : null,
+              icon: const Icon(Icons.share, size: 18),
+              label: const Text('友達に共有する'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryOrange,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

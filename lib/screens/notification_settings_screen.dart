@@ -1,47 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:app_settings/app_settings.dart';
 import '../constants/colors.dart';
 
-class NotificationSettingsScreen extends StatefulWidget {
+class NotificationSettingsScreen extends StatelessWidget {
   const NotificationSettingsScreen({super.key});
-
-  @override
-  State<NotificationSettingsScreen> createState() => _NotificationSettingsScreenState();
-}
-
-class _NotificationSettingsScreenState extends State<NotificationSettingsScreen> {
-  // 通知設定の状態
-  bool _bookingNotifications = true;
-  bool _messageNotifications = true;
-  bool _promotionNotifications = false;
-  bool _systemNotifications = true;
-  bool _emailNotifications = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadSettings();
-  }
-
-  Future<void> _loadSettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _bookingNotifications = prefs.getBool('booking_notifications') ?? true;
-      _messageNotifications = prefs.getBool('message_notifications') ?? true;
-      _promotionNotifications = prefs.getBool('promotion_notifications') ?? false;
-      _systemNotifications = prefs.getBool('system_notifications') ?? true;
-      _emailNotifications = prefs.getBool('email_notifications') ?? false;
-    });
-  }
-
-  Future<void> _saveSettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('booking_notifications', _bookingNotifications);
-    await prefs.setBool('message_notifications', _messageNotifications);
-    await prefs.setBool('promotion_notifications', _promotionNotifications);
-    await prefs.setBool('system_notifications', _systemNotifications);
-    await prefs.setBool('email_notifications', _emailNotifications);
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -57,142 +19,150 @@ class _NotificationSettingsScreenState extends State<NotificationSettingsScreen>
           fontWeight: FontWeight.bold,
         ),
       ),
-      body: ListView(
-        children: [
-          _buildSectionHeader('プッシュ通知'),
-          _buildNotificationTile(
-            '予約通知',
-            '予約の確認、リマインダー、変更通知',
-            _bookingNotifications,
-            (value) {
-              setState(() {
-                _bookingNotifications = value;
-              });
-              _saveSettings();
-            },
-          ),
-          _buildNotificationTile(
-            'メッセージ通知',
-            'チャットメッセージの通知',
-            _messageNotifications,
-            (value) {
-              setState(() {
-                _messageNotifications = value;
-              });
-              _saveSettings();
-            },
-          ),
-          _buildNotificationTile(
-            'プロモーション通知',
-            'キャンペーンやお得な情報の通知',
-            _promotionNotifications,
-            (value) {
-              setState(() {
-                _promotionNotifications = value;
-              });
-              _saveSettings();
-            },
-          ),
-          _buildNotificationTile(
-            'システム通知',
-            'アプリのアップデートや重要なお知らせ',
-            _systemNotifications,
-            (value) {
-              setState(() {
-                _systemNotifications = value;
-              });
-              _saveSettings();
-            },
-          ),
-          const Divider(height: 32),
-          _buildSectionHeader('その他の通知設定'),
-          _buildNotificationTile(
-            'メール通知',
-            '重要な通知をメールでも受け取る',
-            _emailNotifications,
-            (value) {
-              setState(() {
-                _emailNotifications = value;
-              });
-              _saveSettings();
-            },
-          ),
-          const SizedBox(height: 16),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Container(
-              padding: const EdgeInsets.all(12),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 20),
+            Center(
+              child: Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: AppColors.primaryOrange.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.notifications_outlined,
+                  size: 40,
+                  color: AppColors.primaryOrange,
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            const Center(
+              child: Text(
+                '通知設定',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Center(
+              child: Text(
+                '予約の確認やメッセージなど\n大切なお知らせをお届けします',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: AppColors.textSecondary,
+                  height: 1.5,
+                ),
+              ),
+            ),
+            const SizedBox(height: 32),
+            Container(
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: AppColors.lightBeige,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: AppColors.primaryOrange.withOpacity(0.3)),
               ),
-              child: Row(
+              child: Column(
                 children: [
-                  Icon(Icons.info_outline, color: AppColors.primaryOrange, size: 20),
-                  const SizedBox(width: 8),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryOrange.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.info_outline,
+                          color: AppColors.primaryOrange,
+                          size: 20,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Text(
+                          '通知を受け取るには、端末の設定から\n通知を有効にしてください',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: AppColors.textPrimary,
+                            height: 1.5,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  AppSettings.openAppSettings(type: AppSettingsType.notification);
+                },
+                icon: const Icon(Icons.settings, size: 20),
+                label: const Text('通知をオンにする'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryOrange,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  elevation: 0,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Center(
+              child: TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text(
+                  '後で設定する',
+                  style: TextStyle(
+                    color: AppColors.textSecondary,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ),
+            const Spacer(),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: const [
+                  Icon(Icons.check_circle_outline, color: Colors.green, size: 18),
+                  SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      '通知設定はいつでも変更できます。\n重要な通知を見逃さないよう、適切に設定してください。',
+                      '通知は端末の設定からいつでも変更できます',
                       style: TextStyle(
                         fontSize: 12,
                         color: AppColors.textSecondary,
-                        height: 1.5,
                       ),
                     ),
                   ),
                 ],
               ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSectionHeader(String title) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      color: Colors.grey[50],
-      child: Text(
-        title,
-        style: const TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.bold,
-          color: AppColors.textSecondary,
+            const SizedBox(height: 16),
+          ],
         ),
       ),
-    );
-  }
-
-  Widget _buildNotificationTile(
-    String title,
-    String subtitle,
-    bool value,
-    ValueChanged<bool> onChanged,
-  ) {
-    return ListTile(
-      title: Text(
-        title,
-        style: const TextStyle(
-          fontSize: 15,
-          fontWeight: FontWeight.w500,
-          color: AppColors.textPrimary,
-        ),
-      ),
-      subtitle: Text(
-        subtitle,
-        style: const TextStyle(
-          fontSize: 12,
-          color: AppColors.textSecondary,
-        ),
-      ),
-      trailing: Switch(
-        value: value,
-        onChanged: onChanged,
-        activeColor: AppColors.primaryOrange,
-      ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
     );
   }
 }

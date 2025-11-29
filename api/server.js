@@ -1078,11 +1078,35 @@ app.post('/api/register', [
     // Generate provider ID
     const providerId = `provider_${Date.now()}`;
 
-    // Insert new provider (minimal data - profile will be updated later)
+    // Generate unique invite code for new user
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let inviteCode = '';
+    for (let i = 0; i < 8; i++) {
+      inviteCode += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+
+    // Ensure invite code is unique
+    let isUnique = false;
+    while (!isUnique) {
+      const [existing] = await pool.query(
+        'SELECT id FROM providers WHERE invite_code = ?',
+        [inviteCode]
+      );
+      if (existing.length === 0) {
+        isUnique = true;
+      } else {
+        inviteCode = '';
+        for (let i = 0; i < 8; i++) {
+          inviteCode += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+      }
+    }
+
+    // Insert new provider with invite code
     await pool.query(
-      `INSERT INTO providers (id, email, password, phone, verified, created_at)
-       VALUES (?, ?, ?, ?, 0, NOW())`,
-      [providerId, username, hashedPassword, phone || null]
+      `INSERT INTO providers (id, email, password, phone, verified, invite_code, created_at)
+       VALUES (?, ?, ?, ?, 0, ?, NOW())`,
+      [providerId, username, hashedPassword, phone || null, inviteCode]
     );
 
     // Generate JWT token
@@ -1597,6 +1621,269 @@ app.post('/api/didit/webhook', async (req, res) => {
 
   } catch (error) {
     console.error('❌ Error processing webhook:', error);
+  }
+});
+
+// ========================================
+// Invite Code & Coupon System
+// ========================================
+
+// Generate a unique invite code
+function generateInviteCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Exclude confusing chars (I, O, 0, 1)
+  let code = '';
+  for (let i = 0; i < 8; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
+// Generate a unique coupon code
+function generateCouponCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = 'CPN-';
+  for (let i = 0; i < 8; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
+// Get user's invite code (generate if doesn't exist)
+app.get('/api/users/:userId/invite-code', authenticateToken, async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    // Check if user has invite code
+    const [rows] = await pool.query(
+      'SELECT invite_code FROM providers WHERE id = ?',
+      [userId]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    let inviteCode = rows[0].invite_code;
+
+    // Generate if doesn't exist
+    if (!inviteCode) {
+      inviteCode = generateInviteCode();
+
+      // Ensure uniqueness
+      let isUnique = false;
+      while (!isUnique) {
+        const [existing] = await pool.query(
+          'SELECT id FROM providers WHERE invite_code = ?',
+          [inviteCode]
+        );
+        if (existing.length === 0) {
+          isUnique = true;
+        } else {
+          inviteCode = generateInviteCode();
+        }
+      }
+
+      await pool.query(
+        'UPDATE providers SET invite_code = ? WHERE id = ?',
+        [inviteCode, userId]
+      );
+    }
+
+    res.json({ success: true, inviteCode });
+  } catch (error) {
+    console.error('Error getting invite code:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Validate and apply invite code
+app.post('/api/invite/apply', authenticateToken, async (req, res) => {
+  try {
+    const { inviteCode, inviteeId } = req.body;
+
+    if (!inviteCode || !inviteeId) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    // Find the inviter by invite code
+    const [inviterRows] = await pool.query(
+      'SELECT id, name FROM providers WHERE invite_code = ?',
+      [inviteCode]
+    );
+
+    if (inviterRows.length === 0) {
+      return res.status(404).json({ success: false, error: '招待コードが見つかりません' });
+    }
+
+    const inviter = inviterRows[0];
+
+    // Cannot invite yourself
+    if (inviter.id === inviteeId) {
+      return res.status(400).json({ success: false, error: '自分の招待コードは使用できません' });
+    }
+
+    // Check if invitee has already used an invite code
+    const [existingReferral] = await pool.query(
+      'SELECT id FROM invite_referrals WHERE invitee_id = ?',
+      [inviteeId]
+    );
+
+    if (existingReferral.length > 0) {
+      return res.status(400).json({ success: false, error: '招待コードは既に使用済みです' });
+    }
+
+    // Create referral record
+    const [referralResult] = await pool.query(
+      'INSERT INTO invite_referrals (invite_code, inviter_id, invitee_id) VALUES (?, ?, ?)',
+      [inviteCode, inviter.id, inviteeId]
+    );
+
+    const referralId = referralResult.insertId;
+
+    // Create coupon for invitee (500 yen off)
+    const inviteeCouponCode = generateCouponCode();
+    await pool.query(
+      `INSERT INTO coupons (user_id, code, discount_amount, discount_type, source, referral_id, expires_at)
+       VALUES (?, ?, 500, 'fixed', 'invite_received', ?, DATE_ADD(NOW(), INTERVAL 90 DAY))`,
+      [inviteeId, inviteeCouponCode, referralId]
+    );
+
+    // Create coupon for inviter (500 yen off)
+    const inviterCouponCode = generateCouponCode();
+    await pool.query(
+      `INSERT INTO coupons (user_id, code, discount_amount, discount_type, source, referral_id, expires_at)
+       VALUES (?, ?, 500, 'fixed', 'invite_given', ?, DATE_ADD(NOW(), INTERVAL 90 DAY))`,
+      [inviter.id, inviterCouponCode, referralId]
+    );
+
+    console.log(`✅ Invite code applied: ${inviter.id} invited ${inviteeId}`);
+
+    res.json({
+      success: true,
+      message: '招待コードが適用されました！500円オフクーポンを獲得しました。',
+      couponCode: inviteeCouponCode,
+      inviterName: inviter.name
+    });
+  } catch (error) {
+    console.error('Error applying invite code:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Validate invite code (check if it exists, without applying)
+app.get('/api/invite/validate/:code', async (req, res) => {
+  try {
+    const { code } = req.params;
+
+    const [rows] = await pool.query(
+      'SELECT id, name FROM providers WHERE invite_code = ?',
+      [code]
+    );
+
+    if (rows.length === 0) {
+      return res.json({ valid: false, error: '招待コードが見つかりません' });
+    }
+
+    res.json({
+      valid: true,
+      inviterName: rows[0].name
+    });
+  } catch (error) {
+    console.error('Error validating invite code:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get user's coupons
+app.get('/api/users/:userId/coupons', authenticateToken, async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const [coupons] = await pool.query(
+      `SELECT id, code, discount_amount, discount_type, is_used, expires_at, source, created_at
+       FROM coupons
+       WHERE user_id = ? AND is_used = 0 AND (expires_at IS NULL OR expires_at > NOW())
+       ORDER BY created_at DESC`,
+      [userId]
+    );
+
+    res.json({ success: true, coupons });
+  } catch (error) {
+    console.error('Error getting coupons:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Use a coupon
+app.post('/api/coupons/:couponId/use', authenticateToken, async (req, res) => {
+  try {
+    const { couponId } = req.params;
+    const { userId } = req.body;
+
+    // Get coupon
+    const [coupons] = await pool.query(
+      'SELECT * FROM coupons WHERE id = ? AND user_id = ?',
+      [couponId, userId]
+    );
+
+    if (coupons.length === 0) {
+      return res.status(404).json({ error: 'Coupon not found' });
+    }
+
+    const coupon = coupons[0];
+
+    if (coupon.is_used) {
+      return res.status(400).json({ error: 'Coupon already used' });
+    }
+
+    if (coupon.expires_at && new Date(coupon.expires_at) < new Date()) {
+      return res.status(400).json({ error: 'Coupon expired' });
+    }
+
+    // Mark as used
+    await pool.query(
+      'UPDATE coupons SET is_used = 1, used_at = NOW() WHERE id = ?',
+      [couponId]
+    );
+
+    res.json({
+      success: true,
+      discount: coupon.discount_amount,
+      discountType: coupon.discount_type
+    });
+  } catch (error) {
+    console.error('Error using coupon:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get referral stats for a user
+app.get('/api/users/:userId/referral-stats', authenticateToken, async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    // Count how many people this user has invited
+    const [inviteCount] = await pool.query(
+      'SELECT COUNT(*) as count FROM invite_referrals WHERE inviter_id = ?',
+      [userId]
+    );
+
+    // Get total coupons earned from referrals
+    const [couponStats] = await pool.query(
+      `SELECT COUNT(*) as total, SUM(discount_amount) as totalValue
+       FROM coupons WHERE user_id = ? AND source = 'invite_given'`,
+      [userId]
+    );
+
+    res.json({
+      success: true,
+      inviteCount: inviteCount[0].count,
+      totalCouponsEarned: couponStats[0].total || 0,
+      totalValueEarned: couponStats[0].totalValue || 0
+    });
+  } catch (error) {
+    console.error('Error getting referral stats:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 

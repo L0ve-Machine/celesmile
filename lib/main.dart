@@ -40,6 +40,7 @@ import 'screens/notification_settings_screen.dart';
 import 'screens/terms_of_service_screen.dart';
 import 'constants/colors.dart';
 import 'services/provider_database_service.dart';
+import 'services/notification_service.dart';
 import 'config/stripe_config.dart';
 
 void main() async {
@@ -61,6 +62,15 @@ void main() async {
 
   // Initialize provider database to publish test services
   ProviderDatabaseService();
+
+  // Initialize notification service for booking reminders
+  NotificationService().initialize();
+
+  // Request notification permission on first launch (mobile only)
+  if (!kIsWeb) {
+    await NotificationService.requestNotificationPermission();
+  }
+
   runApp(const CelesmileApp());
 }
 

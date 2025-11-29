@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:app_settings/app_settings.dart';
 import '../constants/colors.dart';
 import '../services/database_service.dart';
 import '../services/notification_service.dart';
@@ -104,9 +106,100 @@ class _DashboardScreenState extends State<DashboardScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _checkAndShowNotificationDialog();
+  }
+
+  @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _checkAndShowNotificationDialog() async {
+    final prefs = await SharedPreferences.getInstance();
+    final hasShownNotificationDialog = prefs.getBool('has_shown_notification_dialog') ?? false;
+
+    if (!hasShownNotificationDialog && mounted) {
+      // Wait for the screen to be built
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      if (mounted) {
+        _showNotificationPermissionDialog();
+        await prefs.setBool('has_shown_notification_dialog', true);
+      }
+    }
+  }
+
+  void _showNotificationPermissionDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                color: AppColors.primaryOrange.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.notifications_active,
+                color: AppColors.primaryOrange,
+                size: 32,
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              '通知を受け取りますか？',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              '予約の確認やメッセージなど\n大切なお知らせをお届けします',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 14,
+                color: AppColors.textSecondary,
+                height: 1.5,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text(
+              '後で',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              AppSettings.openAppSettings(type: AppSettingsType.notification);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryOrange,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const Text('通知をオンにする'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override

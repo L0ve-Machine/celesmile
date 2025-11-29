@@ -575,8 +575,8 @@ class MySQLService {
     }
   }
 
-  // Update provider profile
-  Future<Map<String, dynamic>> updateProviderProfile({
+  // Update provider profile with full details (for profile registration)
+  Future<Map<String, dynamic>> updateProviderProfileFull({
     required String providerId,
     required String name,
     String? gender,
@@ -625,6 +625,241 @@ class MySQLService {
         'success': false,
         'error': 'プロフィール更新中にエラーが発生しました',
       };
+    }
+  }
+
+  // ========================================
+  // Invite Code & Coupon Methods
+  // ========================================
+
+  // Get user's invite code
+  Future<String?> getInviteCode(String userId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/users/$userId/invite-code'),
+        headers: _getHeaders(includeAuth: true),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        return data['inviteCode'];
+      }
+      return null;
+    } catch (e) {
+      print('Error getting invite code: $e');
+      return null;
+    }
+  }
+
+  // Validate invite code (check if exists)
+  Future<Map<String, dynamic>> validateInviteCode(String code) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/invite/validate/$code'),
+      );
+
+      final data = json.decode(response.body);
+      return data;
+    } catch (e) {
+      print('Error validating invite code: $e');
+      return {'valid': false, 'error': 'エラーが発生しました'};
+    }
+  }
+
+  // Apply invite code (creates coupons for both users)
+  Future<Map<String, dynamic>> applyInviteCode(String inviteCode, String inviteeId) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/invite/apply'),
+        headers: _getHeaders(includeAuth: true),
+        body: json.encode({
+          'inviteCode': inviteCode,
+          'inviteeId': inviteeId,
+        }),
+      );
+
+      final data = json.decode(response.body);
+      return data;
+    } catch (e) {
+      print('Error applying invite code: $e');
+      return {'success': false, 'error': 'エラーが発生しました'};
+    }
+  }
+
+  // Get user's coupons
+  Future<List<Map<String, dynamic>>> getCoupons(String userId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/users/$userId/coupons'),
+        headers: _getHeaders(includeAuth: true),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['success'] == true) {
+          return List<Map<String, dynamic>>.from(data['coupons']);
+        }
+      }
+      return [];
+    } catch (e) {
+      print('Error getting coupons: $e');
+      return [];
+    }
+  }
+
+  // Use a coupon
+  Future<Map<String, dynamic>> useCoupon(int couponId, String userId) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/coupons/$couponId/use'),
+        headers: _getHeaders(includeAuth: true),
+        body: json.encode({'userId': userId}),
+      );
+
+      final data = json.decode(response.body);
+      return data;
+    } catch (e) {
+      print('Error using coupon: $e');
+      return {'success': false, 'error': 'エラーが発生しました'};
+    }
+  }
+
+  // Get referral stats
+  Future<Map<String, dynamic>> getReferralStats(String userId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/users/$userId/referral-stats'),
+        headers: _getHeaders(includeAuth: true),
+      );
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      }
+      return {'inviteCount': 0, 'totalCouponsEarned': 0, 'totalValueEarned': 0};
+    } catch (e) {
+      print('Error getting referral stats: $e');
+      return {'inviteCount': 0, 'totalCouponsEarned': 0, 'totalValueEarned': 0};
+    }
+  }
+
+  // ========================================
+  // Notification Methods
+  // ========================================
+
+  // Get notifications for a user
+  Future<List<Map<String, dynamic>>> getUserNotifications(String userId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/notifications/user/$userId'),
+        headers: _getHeaders(includeAuth: true),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['success'] == true && data['notifications'] != null) {
+          return List<Map<String, dynamic>>.from(data['notifications']);
+        }
+      }
+      return [];
+    } catch (e) {
+      print('Error getting user notifications: $e');
+      return [];
+    }
+  }
+
+  // Get notifications for a provider
+  Future<List<Map<String, dynamic>>> getProviderNotifications(String providerId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/notifications/provider/$providerId'),
+        headers: _getHeaders(includeAuth: true),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['success'] == true && data['notifications'] != null) {
+          return List<Map<String, dynamic>>.from(data['notifications']);
+        }
+      }
+      return [];
+    } catch (e) {
+      print('Error getting provider notifications: $e');
+      return [];
+    }
+  }
+
+  // Create a notification
+  Future<bool> createNotification(Map<String, dynamic> notificationData) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/notifications'),
+        headers: _getHeaders(includeAuth: true),
+        body: json.encode(notificationData),
+      );
+
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Error creating notification: $e');
+      return false;
+    }
+  }
+
+  // Mark notification as read
+  Future<bool> markNotificationAsRead(String notificationId) async {
+    try {
+      final response = await http.patch(
+        Uri.parse('$baseUrl/notifications/$notificationId/read'),
+        headers: _getHeaders(includeAuth: true),
+      );
+
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Error marking notification as read: $e');
+      return false;
+    }
+  }
+
+  // Mark all notifications as read
+  Future<bool> markAllNotificationsAsRead({String? userId, String? providerId}) async {
+    try {
+      final body = <String, dynamic>{};
+      if (userId != null) body['userId'] = userId;
+      if (providerId != null) body['providerId'] = providerId;
+
+      final response = await http.patch(
+        Uri.parse('$baseUrl/notifications/mark-all-read'),
+        headers: _getHeaders(includeAuth: true),
+        body: json.encode(body),
+      );
+
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Error marking all notifications as read: $e');
+      return false;
+    }
+  }
+
+  // Get user's upcoming bookings (for reminder notifications)
+  Future<List<Map<String, dynamic>>> getUserUpcomingBookings(String userId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/bookings/user/$userId/upcoming'),
+        headers: _getHeaders(includeAuth: true),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data is List) {
+          return List<Map<String, dynamic>>.from(data);
+        }
+        if (data['bookings'] != null) {
+          return List<Map<String, dynamic>>.from(data['bookings']);
+        }
+      }
+      return [];
+    } catch (e) {
+      print('Error getting upcoming bookings: $e');
+      return [];
     }
   }
 }
