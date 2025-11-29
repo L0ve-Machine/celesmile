@@ -289,8 +289,8 @@ class MySQLService {
     }
   }
 
-  // Update provider profile
-  Future<bool> updateProviderProfile(String providerId, Map<String, dynamic> profileData) async {
+  // Update provider public profile (name, title, bio, etc.)
+  Future<bool> updateProviderPublicProfile(String providerId, Map<String, dynamic> profileData) async {
     final response = await http.patch(
       Uri.parse('$baseUrl/providers/$providerId'),
       headers: _getHeaders(includeAuth: true),

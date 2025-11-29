@@ -159,7 +159,7 @@ class _ProviderProfileEditScreenState extends State<ProviderProfileEditScreen> {
       print('Profile Image: $_profileImageUrl');
 
       // Save to database via API
-      final success = await MySQLService.instance.updateProviderProfile(
+      final success = await MySQLService.instance.updateProviderPublicProfile(
         _providerId!,
         {
           'name': _nameController.text,

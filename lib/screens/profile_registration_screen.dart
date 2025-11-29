@@ -1025,7 +1025,7 @@ class _ProfileRegistrationScreenState extends State<ProfileRegistrationScreen> {
     await AuthService.saveProfile(profile);
 
     // サーバーのDBにもプロフィールを保存
-    final providerId = AuthService.currentProviderId;
+    final providerId = AuthService.currentUserProviderId;
     if (providerId != null) {
       final result = await MySQLService.instance.updateProviderProfile(
         providerId: providerId,
