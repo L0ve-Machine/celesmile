@@ -150,6 +150,8 @@ https://celesmile-demo.duckdns.org
             context,
             'ログアウト',
             () {
+              // Clear auth state
+              AuthService.logout();
               // Navigate to the first page (WelcomeScreen)
               Navigator.of(context).pushNamedAndRemoveUntil(
                 '/',

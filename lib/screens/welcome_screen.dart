@@ -275,9 +275,9 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
 
     // 認証
     if (await AuthService.login(username, password)) {
-      // Check if user is a provider
-      if (AuthService.isProvider) {
-        // Provider user - go to provider dashboard
+      // Check if user is a VERIFIED provider
+      if (AuthService.isVerifiedProvider) {
+        // Verified provider user - go to provider dashboard
         Navigator.pushReplacementNamed(
           context,
           '/provider-home-dashboard',
@@ -286,7 +286,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
         return;
       }
 
-      // Regular user - check profile
+      // Regular user or unverified provider - check profile
       final profile = AuthService.currentUserProfile;
 
       // プロフィールがnullでない場合のみチェック

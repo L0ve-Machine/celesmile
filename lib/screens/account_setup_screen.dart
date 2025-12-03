@@ -11,7 +11,7 @@ class AccountSetupScreen extends StatefulWidget {
 }
 
 class _AccountSetupScreenState extends State<AccountSetupScreen> {
-  final TextEditingController _usernameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _passwordConfirmController = TextEditingController();
 
@@ -21,7 +21,7 @@ class _AccountSetupScreenState extends State<AccountSetupScreen> {
 
   @override
   void dispose() {
-    _usernameController.dispose();
+    _emailController.dispose();
     _passwordController.dispose();
     _passwordConfirmController.dispose();
     super.dispose();
@@ -54,7 +54,7 @@ class _AccountSetupScreenState extends State<AccountSetupScreen> {
 
               // 説明テキスト
               const Text(
-                'ログインに使用するユーザー名とパスワードを設定してください',
+                'ログインに使用するメールアドレスとパスワードを設定してください',
                 style: TextStyle(
                   fontSize: 14,
                   color: AppColors.textSecondary,
@@ -64,21 +64,14 @@ class _AccountSetupScreenState extends State<AccountSetupScreen> {
 
               const SizedBox(height: 32),
 
-              // ユーザー名
-              _buildLabel('ユーザー名'),
+              // メールアドレス
+              _buildLabel('メールアドレス'),
               const SizedBox(height: 8),
               _buildTextField(
-                controller: _usernameController,
-                hint: 'ユーザー名を入力',
-                icon: Icons.person_outline,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                '※ 英数字と記号（_ - .）が使用できます（4文字以上）',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[600],
-                ),
+                controller: _emailController,
+                hint: 'example@email.com',
+                icon: Icons.email_outlined,
+                keyboardType: TextInputType.emailAddress,
               ),
 
               const SizedBox(height: 24),
@@ -149,6 +142,7 @@ class _AccountSetupScreenState extends State<AccountSetupScreen> {
     required TextEditingController controller,
     required String hint,
     required IconData icon,
+    TextInputType? keyboardType,
   }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -164,6 +158,7 @@ class _AccountSetupScreenState extends State<AccountSetupScreen> {
           Expanded(
             child: TextField(
               controller: controller,
+              keyboardType: keyboardType,
               style: const TextStyle(
                 color: AppColors.textPrimary,
                 fontSize: 15,
@@ -264,25 +259,24 @@ class _AccountSetupScreenState extends State<AccountSetupScreen> {
     );
   }
 
-  bool _isValidUsername(String username) {
-    // 英数字と _ - . のみ許可、4文字以上
-    final usernameRegex = RegExp(r'^[a-zA-Z0-9_\-.]{4,}$');
-    return usernameRegex.hasMatch(username);
+  bool _isValidEmail(String email) {
+    final emailRegex = RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
+    return emailRegex.hasMatch(email);
   }
 
   Future<void> _handleCreateAccount() async {
-    final username = _usernameController.text.trim();
+    final email = _emailController.text.trim();
     final password = _passwordController.text;
     final passwordConfirm = _passwordConfirmController.text;
 
     // バリデーション
-    if (username.isEmpty) {
-      _showError('ユーザー名を入力してください');
+    if (email.isEmpty) {
+      _showError('メールアドレスを入力してください');
       return;
     }
 
-    if (!_isValidUsername(username)) {
-      _showError('ユーザー名は4文字以上の英数字と記号（_ - .）で入力してください');
+    if (!_isValidEmail(email)) {
+      _showError('正しいメールアドレスを入力してください');
       return;
     }
 
@@ -307,7 +301,7 @@ class _AccountSetupScreenState extends State<AccountSetupScreen> {
 
     // サーバーにアカウント作成（DBに保存）
     final result = await MySQLService.instance.registerAccount(
-      username: username,
+      username: email,
       password: password,
       phone: AuthService.currentUserPhone,
     );
@@ -324,7 +318,7 @@ class _AccountSetupScreenState extends State<AccountSetupScreen> {
       if (token != null && providerId != null) {
         // AuthServiceにログイン状態を設定
         await AuthService.setLoginState(
-          username: username,
+          username: email,
           token: token,
           providerId: providerId,
         );

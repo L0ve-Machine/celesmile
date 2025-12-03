@@ -95,6 +95,9 @@ class AuthService {
     'test': 'test_provider_001',
   };
 
+  // Track whether user is a verified provider (not just has provider_id)
+  static bool _isVerifiedProvider = false;
+
   // ユーザープロフィール管理
   static final Map<String, UserProfile> _profiles = {};
 
@@ -204,24 +207,39 @@ class AuthService {
           // Provider account (verified)
           _currentUser = provider['email'] ?? username;
           providerId = provider['id'];
+
+          // Clear any existing provider mapping first
+          _userProviderIds.clear();
+          _isVerifiedProvider = true;  // This is a verified provider
+
+          // Set new provider mapping
           _userProviderIds[_currentUser!] = providerId!;
           await prefs.setString('provider_id_$_currentUser', providerId);
-          print('✅ Set as provider: $providerId');
+          print('✅ Set as VERIFIED provider: $providerId');
         } else if (user != null) {
           // Customer account (unverified or regular user)
           _currentUser = user['email'] ?? username;
+
+          // Clear any existing provider mapping first
+          _userProviderIds.clear();
+          _isVerifiedProvider = false;  // Not a verified provider
+
           // Check if there's a provider ID in the response
           providerId = user['provider_id'];
           if (providerId != null) {
             _userProviderIds[_currentUser!] = providerId;
             await prefs.setString('provider_id_$_currentUser', providerId);
+            print('✅ Set as customer with UNVERIFIED provider registration: $providerId');
           } else {
+            // Ensure provider ID is removed for this user
             await prefs.remove('provider_id_$_currentUser');
-            _userProviderIds.remove(_currentUser);
+            print('✅ Set as regular customer (no provider ID)');
           }
-          print('✅ Set as customer: $_currentUser');
         } else {
           _currentUser = username;
+          // Clear provider mapping for safety
+          _userProviderIds.clear();
+          _isVerifiedProvider = false;
         }
 
         // Load user data from local storage first
@@ -358,7 +376,13 @@ class AuthService {
 
   // ログアウト
   static void logout() {
+    // Clear provider ID for current user before clearing user
+    if (_currentUser != null) {
+      _userProviderIds.remove(_currentUser);
+    }
     _currentUser = null;
+    _currentToken = null;
+    _isVerifiedProvider = false;
   }
 
   // Get provider ID for current user
@@ -367,12 +391,18 @@ class AuthService {
     return _userProviderIds[_currentUser];
   }
 
-  // Check if current user is a provider
+  // Check if current user is a provider (has provider_id, may or may not be verified)
   static bool get isProvider {
     if (_currentUser == null) return false;
     final result = _userProviderIds.containsKey(_currentUser);
     print('🔍 isProvider check: user=$_currentUser, result=$result, providerIds=$_userProviderIds');
     return result;
+  }
+
+  // Check if current user is a VERIFIED provider (only verified providers can access provider dashboard)
+  static bool get isVerifiedProvider {
+    print('🔍 isVerifiedProvider check: user=$_currentUser, verified=$_isVerifiedProvider');
+    return _isVerifiedProvider;
   }
 
   // Set user as provider (called after DIDIT approval)

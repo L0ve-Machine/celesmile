@@ -17,7 +17,6 @@ class ProfileRegistrationScreen extends StatefulWidget {
 class _ProfileRegistrationScreenState extends State<ProfileRegistrationScreen> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
-  final TextEditingController _emailController = TextEditingController();
   final TextEditingController _inviteCodeController = TextEditingController();
   final TextEditingController _postalCodeController = TextEditingController();
   final TextEditingController _prefectureController = TextEditingController();
@@ -43,7 +42,6 @@ class _ProfileRegistrationScreenState extends State<ProfileRegistrationScreen> {
   String? _genderError;
   String? _birthDateError;
   String? _phoneError;
-  String? _emailError;
   String? _inviteCodeError;
   String? _postalCodeError;
   String? _prefectureError;
@@ -72,18 +70,6 @@ class _ProfileRegistrationScreenState extends State<ProfileRegistrationScreen> {
         _phoneError = '10桁または11桁の数字で入力';
       } else {
         _phoneError = null;
-      }
-    });
-  }
-
-  void _validateEmail(String value) {
-    setState(() {
-      if (value.trim().isEmpty) {
-        _emailError = 'Eメールを入力してください';
-      } else if (!RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$').hasMatch(value)) {
-        _emailError = '正しいメールアドレスを入力';
-      } else {
-        _emailError = null;
       }
     });
   }
@@ -181,7 +167,6 @@ class _ProfileRegistrationScreenState extends State<ProfileRegistrationScreen> {
       _selectedGender = profile.gender;
       _selectedBirthDate = profile.birthDate;
       _phoneController.text = profile.phone ?? '';
-      _emailController.text = profile.email ?? '';
       _postalCodeController.text = profile.postalCode ?? '';
       _prefectureController.text = profile.prefecture ?? '';
       _cityController.text = profile.city ?? '';
@@ -195,7 +180,6 @@ class _ProfileRegistrationScreenState extends State<ProfileRegistrationScreen> {
   void dispose() {
     _nameController.dispose();
     _phoneController.dispose();
-    _emailController.dispose();
     _inviteCodeController.dispose();
     _postalCodeController.dispose();
     _prefectureController.dispose();
@@ -252,26 +236,6 @@ class _ProfileRegistrationScreenState extends State<ProfileRegistrationScreen> {
             _buildLabel('生年月日'),
             const SizedBox(height: 8),
             _buildDatePicker(),
-
-            const SizedBox(height: 20),
-
-            // 電話番号
-            _buildLabel('電話番号'),
-            const SizedBox(height: 8),
-            _buildPhoneField(),
-
-            const SizedBox(height: 20),
-
-            // Eメール
-            _buildLabel('Eメール'),
-            const SizedBox(height: 8),
-            _buildTextField(
-              _emailController,
-              'test@celesmile.com',
-              keyboardType: TextInputType.emailAddress,
-              errorText: _emailError,
-              onChanged: _validateEmail,
-            ),
 
             const SizedBox(height: 20),
 
@@ -1071,13 +1035,6 @@ class _ProfileRegistrationScreenState extends State<ProfileRegistrationScreen> {
     );
   }
 
-  bool _isValidEmail(String email) {
-    final emailRegex = RegExp(
-      r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
-    );
-    return emailRegex.hasMatch(email);
-  }
-
   bool _isValidPhone(String phone) {
     final phoneRegex = RegExp(r'^[0-9]{10,11}$');
     return phoneRegex.hasMatch(phone.replaceAll(RegExp(r'[-\s]'), ''));
@@ -1144,26 +1101,6 @@ class _ProfileRegistrationScreenState extends State<ProfileRegistrationScreen> {
       return;
     }
 
-    if (_phoneController.text.trim().isEmpty) {
-      _showError('電話番号を入力してください');
-      return;
-    }
-
-    if (!_isValidPhone(_phoneController.text.trim())) {
-      _showError('電話番号は10桁または11桁の数字で入力してください');
-      return;
-    }
-
-    if (_emailController.text.trim().isEmpty) {
-      _showError('Eメールを入力してください');
-      return;
-    }
-
-    if (!_isValidEmail(_emailController.text.trim())) {
-      _showError('正しいメールアドレスを入力してください\n例: sample@example.com');
-      return;
-    }
-
     if (_postalCodeController.text.trim().isEmpty) {
       _showError('郵便番号を入力してください');
       return;
@@ -1185,12 +1122,17 @@ class _ProfileRegistrationScreenState extends State<ProfileRegistrationScreen> {
     }
 
     // ローカルにプロフィール保存
+    // 電話番号はSMS認証済みのものを使用
+    // Emailは登録済みのcurrentUserを使用
+    final phone = AuthService.currentUserPhone ?? _phoneController.text.trim();
+    final email = AuthService.currentUser ?? ''; // Use registered email
+
     final profile = UserProfile()
       ..name = _nameController.text.trim()
       ..gender = _selectedGender
       ..birthDate = _selectedBirthDate
-      ..phone = _phoneController.text.trim()
-      ..email = _emailController.text.trim()
+      ..phone = phone
+      ..email = email
       ..postalCode = _postalCodeController.text.trim()
       ..prefecture = _prefectureController.text.trim()
       ..city = _cityController.text.trim()
@@ -1207,8 +1149,8 @@ class _ProfileRegistrationScreenState extends State<ProfileRegistrationScreen> {
         name: _nameController.text.trim(),
         gender: _selectedGender,
         birthDate: _selectedBirthDate,
-        phone: _phoneController.text.trim(),
-        email: _emailController.text.trim(),
+        phone: phone,
+        email: email,
         postalCode: _postalCodeController.text.trim(),
         prefecture: _prefectureController.text.trim(),
         city: _cityController.text.trim(),

@@ -194,6 +194,16 @@ class NotificationService {
     return _notifications.any((n) => !n.isRead);
   }
 
+  // Check if there are any active (unread) notifications
+  bool hasActiveNotifications() {
+    return hasUnreadNotifications();
+  }
+
+  // Get active (unread) notifications
+  List<NotificationModel> getActiveNotifications() {
+    return _notifications.where((n) => !n.isRead).toList();
+  }
+
   // Mark notification as read
   Future<void> markAsRead(String notificationId) async {
     final index = _notifications.indexWhere((n) => n.id == notificationId);
