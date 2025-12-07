@@ -47,5 +47,7 @@
 	<true/>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>プロフィール画像やサロン画像をアップロードするために写真ライブラリへのアクセスが必要です</string>
+	<key>NSCameraUsageDescription</key>
+	<string>プロフィール画像を撮影するためにカメラへのアクセスが必要です</string>
 </dict>
 </plist>
