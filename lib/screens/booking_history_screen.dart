@@ -4,6 +4,7 @@ import '../services/booking_history_service.dart';
 import '../services/chat_service.dart';
 import '../services/auth_service.dart';
 import '../services/mysql_service.dart';
+import '../services/stripe_service.dart';
 
 class BookingHistoryScreen extends StatefulWidget {
   const BookingHistoryScreen({super.key});
@@ -555,7 +556,10 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
       builder: (context) => AlertDialog(
         title: const Text('予約キャンセル'),
         content: const Text(
-          'この予約をキャンセルしますか？\nキャンセル料が発生する場合があります。',
+          'この予約をキャンセルしますか？\n\n'
+          '【キャンセルポリシー】\n'
+          '・予約開始時刻の180分前まで：全額返金\n'
+          '・180分以内のキャンセル：キャンセル料100%',
         ),
         actions: [
           TextButton(
@@ -563,11 +567,9 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
             child: const Text('戻る'),
           ),
           TextButton(
-            onPressed: () {
-              final bookingService = BookingHistoryService();
-              bookingService.cancelBooking(bookingId);
+            onPressed: () async {
               Navigator.pop(context);
-              setState(() {}); // Refresh the list
+              await _processCancellation(bookingId);
             },
             child: const Text(
               'キャンセルする',
@@ -580,6 +582,88 @@ class _BookingHistoryScreenState extends State<BookingHistoryScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _processCancellation(String bookingId) async {
+    // ローディング表示
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
+
+    try {
+      // バックエンドのキャンセルAPIを呼び出し（180分ルール適用）
+      final result = await StripeService.cancelBooking(bookingId: bookingId);
+
+      // ローディングを閉じる
+      if (mounted) Navigator.pop(context);
+
+      // ローカルの予約履歴も更新
+      final bookingService = BookingHistoryService();
+      bookingService.cancelBooking(bookingId);
+
+      // 結果を表示
+      if (mounted) {
+        final canRefund = result['canRefund'] as bool? ?? false;
+        final refundAmount = result['refundAmount'] as int? ?? 0;
+        final cancellationFee = result['cancellationFee'] as int? ?? 0;
+        final message = result['message'] as String? ?? 'キャンセルが完了しました';
+
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text(canRefund ? 'キャンセル完了' : 'キャンセル完了（キャンセル料発生）'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(message),
+                const SizedBox(height: 16),
+                if (canRefund && refundAmount > 0)
+                  Text('返金額: ¥${refundAmount.toString().replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}',
+                    style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
+                  ),
+                if (!canRefund && cancellationFee > 0)
+                  Text('キャンセル料: ¥${cancellationFee.toString().replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}',
+                    style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
+                  ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+
+        setState(() {}); // 画面を更新
+      }
+    } catch (e) {
+      // ローディングを閉じる
+      if (mounted) Navigator.pop(context);
+
+      // エラー表示
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('エラー'),
+            content: Text('キャンセル処理に失敗しました: ${e.toString()}'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      }
+    }
   }
 
   bool _isBookingDatePassed(BookingHistory booking) {

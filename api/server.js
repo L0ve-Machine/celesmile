@@ -776,7 +776,8 @@ app.post('/api/bookings', async (req, res) => {
     const {
       id, provider_id, salon_id, service_id, customer_name,
       customer_phone, customer_email, user_id, service_name,
-      booking_date, time_slot, duration, price, status, notes
+      booking_date, time_slot, duration, price, status, notes,
+      payment_intent_id, stripe_account_id, amount
     } = req.body;
 
     // end_time_slotを計算（例: 10:00 + 90分 = 11:30）
@@ -794,12 +795,14 @@ app.post('/api/bookings', async (req, res) => {
       `INSERT INTO bookings (
         id, provider_id, salon_id, service_id, customer_name,
         customer_phone, customer_email, user_id, service_name,
-        booking_date, time_slot, duration, end_time_slot, price, status, notes
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        booking_date, time_slot, duration, end_time_slot, price, status, notes,
+        payment_intent_id, stripe_account_id, amount
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id, provider_id, salon_id, service_id, customer_name,
         customer_phone, customer_email, user_id, service_name,
-        booking_date, time_slot, duration || 60, end_time_slot, price, status, notes
+        booking_date, time_slot, duration || 60, end_time_slot, price, status, notes,
+        payment_intent_id || null, stripe_account_id || null, amount || price
       ]
     );
 
@@ -820,6 +823,123 @@ app.patch('/api/bookings/:bookingId', async (req, res) => {
     );
     res.json({ success: true });
   } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Cancel booking with refund logic (180分ルール適用)
+app.post('/api/bookings/:bookingId/cancel', async (req, res) => {
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('🔴 Booking Cancellation Request');
+
+  try {
+    const { bookingId } = req.params;
+    const { reason } = req.body;
+
+    // 1. 予約情報を取得
+    const [rows] = await pool.query(
+      'SELECT * FROM bookings WHERE id = ?',
+      [bookingId]
+    );
+
+    if (rows.length === 0) {
+      console.log('❌ Booking not found:', bookingId);
+      return res.status(404).json({ error: 'Booking not found' });
+    }
+
+    const booking = rows[0];
+    console.log('📋 Booking found:', {
+      id: booking.id,
+      booking_date: booking.booking_date,
+      time_slot: booking.time_slot,
+      payment_intent_id: booking.payment_intent_id,
+      amount: booking.amount
+    });
+
+    // 既にキャンセル済みの場合
+    if (booking.status === 'cancelled') {
+      return res.status(400).json({ error: 'Booking is already cancelled' });
+    }
+
+    // 2. 180分ルールをチェック
+    // 予約日時を作成（booking_date + time_slot）
+    const bookingDate = new Date(booking.booking_date);
+    const [hours, minutes] = booking.time_slot.split(':').map(Number);
+    bookingDate.setHours(hours, minutes, 0, 0);
+
+    const now = new Date();
+    const diffMinutes = (bookingDate - now) / (1000 * 60);
+
+    console.log('⏰ Time check:', {
+      bookingDateTime: bookingDate.toISOString(),
+      now: now.toISOString(),
+      diffMinutes: Math.round(diffMinutes),
+      canRefund: diffMinutes >= 180
+    });
+
+    let refundResult = null;
+    let refundAmount = 0;
+    const canRefund = diffMinutes >= 180;
+
+    // 3. 返金処理（180分以上前の場合のみ）
+    if (canRefund && booking.payment_intent_id && booking.stripe_account_id) {
+      try {
+        console.log('💰 Processing refund...');
+
+        // Stripe Refund API (Connected Account用)
+        const refund = await stripe.refunds.create({
+          payment_intent: booking.payment_intent_id,
+        }, {
+          stripeAccount: booking.stripe_account_id,
+        });
+
+        refundResult = {
+          id: refund.id,
+          amount: refund.amount,
+          status: refund.status
+        };
+        refundAmount = refund.amount;
+
+        console.log('✅ Refund successful:', refundResult);
+      } catch (refundError) {
+        console.error('❌ Refund failed:', refundError.message);
+        // 返金に失敗しても、キャンセル自体は続行
+        refundResult = { error: refundError.message };
+      }
+    } else if (!canRefund) {
+      console.log('⚠️  No refund - within 180 minutes of booking time');
+    } else {
+      console.log('⚠️  No refund - payment_intent_id or stripe_account_id missing');
+    }
+
+    // 4. DBステータス更新
+    await pool.query(
+      `UPDATE bookings
+       SET status = 'cancelled',
+           cancelled_at = NOW(),
+           refunded_amount = ?
+       WHERE id = ?`,
+      [refundAmount, bookingId]
+    );
+
+    console.log('✅ Booking cancelled successfully');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+    res.json({
+      success: true,
+      bookingId: bookingId,
+      canRefund: canRefund,
+      refundAmount: refundAmount,
+      cancellationFee: canRefund ? 0 : booking.amount,
+      refundResult: refundResult,
+      message: canRefund
+        ? '予約がキャンセルされ、全額返金されました。'
+        : '予約がキャンセルされました。180分以内のキャンセルのため、キャンセル料が発生します。'
+    });
+
+  } catch (error) {
+    console.error('❌ Cancellation error:', error.message);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     res.status(500).json({ error: error.message });
   }
 });
@@ -1509,6 +1629,8 @@ app.post('/api/stripe/payment-intent', async (req, res) => {
     res.json({
       clientSecret: paymentIntent.client_secret,
       applicationFee: applicationFee,
+      paymentIntentId: paymentIntent.id,
+      stripeAccountId: stripeAccountId,
     });
   } catch (error) {
     console.error('❌ Error creating payment intent:', error.message);

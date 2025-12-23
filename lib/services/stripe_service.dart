@@ -44,7 +44,8 @@ class StripeService {
   }
 
   // 決済処理を実行（Payment Sheetを使用）
-  static Future<bool> processPayment({
+  // 戻り値: {success: bool, paymentIntentId: String?, stripeAccountId: String?}
+  static Future<Map<String, dynamic>> processPayment({
     required int amountInCents,
     required String providerId,
     String currency = 'jpy',
@@ -66,6 +67,8 @@ class StripeService {
 
       final clientSecret = paymentIntentData['clientSecret'] as String?;
       final applicationFee = paymentIntentData['applicationFee'] as int?;
+      final paymentIntentId = paymentIntentData['paymentIntentId'] as String?;
+      final stripeAccountId = paymentIntentData['stripeAccountId'] as String?;
 
       if (clientSecret == null) {
         throw Exception('Client secret not found in payment intent response');
@@ -73,6 +76,7 @@ class StripeService {
 
       print('   - Application Fee (運営手数料): ${applicationFee ?? 0} 円');
       print('   - Provider受取額: ${amountInCents - (applicationFee ?? 0)} 円');
+      print('   - Payment Intent ID: $paymentIntentId');
 
       // Web環境かどうかをチェック
       bool isWeb = identical(0, 0.0);
@@ -84,7 +88,11 @@ class StripeService {
         // テスト環境では、Payment Intentが作成された時点で成功とみなす
         // 本番環境では、別の決済フローを実装する必要があります
         print('   ✅ 決済Intent作成成功（Web環境）');
-        return true;
+        return {
+          'success': true,
+          'paymentIntentId': paymentIntentId,
+          'stripeAccountId': stripeAccountId,
+        };
       } else {
         // MOBILE: 通常のPayment Sheet処理
         // 2. Payment Sheetを初期化
@@ -101,13 +109,17 @@ class StripeService {
 
         // 決済成功
         print('   ✅ 決済成功');
-        return true;
+        return {
+          'success': true,
+          'paymentIntentId': paymentIntentId,
+          'stripeAccountId': stripeAccountId,
+        };
       }
     } on StripeException catch (e) {
       // ユーザーがキャンセルした場合
       if (e.error.code == FailureCode.Canceled) {
         print('   ⚠️  決済キャンセル');
-        return false;
+        return {'success': false};
       }
       // その他のStripeエラー
       print('   ❌ Stripe エラー: ${e.error.message}');
@@ -295,6 +307,35 @@ class StripeService {
     } catch (e) {
       print('Payment processing error: $e');
       return false;
+    }
+  }
+
+  // 予約キャンセル（180分ルール適用・返金処理）
+  static Future<Map<String, dynamic>> cancelBooking({
+    required String bookingId,
+    String? reason,
+  }) async {
+    try {
+      final url = Uri.parse('$_baseUrl/bookings/$bookingId/cancel');
+
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: json.encode({
+          'reason': reason,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      } else {
+        final errorBody = json.decode(response.body);
+        throw Exception(errorBody['error'] ?? 'Failed to cancel booking');
+      }
+    } catch (e) {
+      throw Exception('Error cancelling booking: $e');
     }
   }
 }

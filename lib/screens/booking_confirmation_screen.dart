@@ -47,6 +47,11 @@ class _BookingConfirmationScreenState
   List<SavedPaymentMethod> _savedCards = [];
   SavedPaymentMethod? _selectedCard;
 
+  // Payment info for cancellation/refund
+  String? _paymentIntentId;
+  String? _stripeAccountId;
+  int? _paidAmount;
+
   // Selected date and time
   DateTime? _selectedDate;
   String? _selectedTimeSlot;
@@ -1168,6 +1173,9 @@ class _BookingConfirmationScreenState
         'price': booking.price,
         'status': booking.status,
         'notes': booking.notes,
+        'payment_intent_id': _paymentIntentId,
+        'stripe_account_id': _stripeAccountId,
+        'amount': _paidAmount ?? booking.price,
       };
 
       await MySQLService.instance.createBooking(bookingData);
@@ -1278,16 +1286,24 @@ class _BookingConfirmationScreenState
 
       print('   - Stripe決済開始');
       // 新しいカードで決済（Direct Charge with Application Fee）
-      bool paymentSuccess = await StripeService.processPayment(
+      final paymentResult = await StripeService.processPayment(
         amountInCents: finalAmount,
         providerId: _service!.providerId ?? 'test_provider_001',
         currency: 'jpy',
         metadata: metadata,
       );
 
+      final paymentSuccess = paymentResult['success'] as bool? ?? false;
       print('   - 決済結果: $paymentSuccess');
 
       if (paymentSuccess) {
+        // 決済情報を保存（キャンセル・返金用）
+        _paymentIntentId = paymentResult['paymentIntentId'] as String?;
+        _stripeAccountId = paymentResult['stripeAccountId'] as String?;
+        _paidAmount = finalAmount;
+        print('   - Payment Intent ID: $_paymentIntentId');
+        print('   - Stripe Account ID: $_stripeAccountId');
+
         print('   - 決済成功、予約確定処理を開始');
         // 決済成功 → 予約を確定
         await _confirmBooking();
