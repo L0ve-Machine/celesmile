@@ -1508,9 +1508,8 @@ app.post('/api/stripe/connect/account', authenticateToken, async (req, res) => {
   try {
     const { email, providerId } = req.body;
 
-    // Create a Connect Express account with manual payout schedule
-    // 翌月25日払いを実現するため、手動送金モードに設定
-    // 毎月25日にバッチ処理で送金を実行する
+    // Create a Connect Express account with monthly payout schedule (25th)
+    // 毎月25日に自動振込。24日にAccount Debitsで振込手数料250円を控除
     const account = await stripe.accounts.create({
       type: 'express',
       country: 'JP',
@@ -1522,7 +1521,8 @@ app.post('/api/stripe/connect/account', authenticateToken, async (req, res) => {
       settings: {
         payouts: {
           schedule: {
-            interval: 'manual', // 手動送金モード（翌月25日払い対応）
+            interval: 'monthly',
+            monthly_anchor: 25, // 毎月25日に自動振込
           },
         },
       },
@@ -1693,6 +1693,179 @@ app.get('/api/stripe/connect/payout-schedule/:accountId', async (req, res) => {
     });
   } catch (error) {
     console.error('Error retrieving payout schedule:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update payout schedule for existing connected account
+app.post('/api/stripe/connect/payout-schedule/:accountId', async (req, res) => {
+  try {
+    const { accountId } = req.params;
+
+    // Update to monthly payout on 25th
+    const account = await stripe.accounts.update(accountId, {
+      settings: {
+        payouts: {
+          schedule: {
+            interval: 'monthly',
+            monthly_anchor: 25,
+          },
+        },
+      },
+    });
+
+    res.json({
+      success: true,
+      accountId: account.id,
+      payoutSchedule: account.settings?.payouts?.schedule,
+    });
+  } catch (error) {
+    console.error('Error updating payout schedule:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ============================================
+// 振込手数料控除（毎月24日に実行）
+// ============================================
+
+// 振込手数料定数
+const TRANSFER_FEE = 250; // 円
+
+// 単一のConnected Accountから振込手数料を控除
+app.post('/api/stripe/deduct-transfer-fee/:accountId', async (req, res) => {
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('💰 Transfer Fee Deduction Request');
+
+  try {
+    const { accountId } = req.params;
+
+    // 1. Connected Accountの残高を確認
+    const balance = await stripe.balance.retrieve({
+      stripeAccount: accountId,
+    });
+    const availableBalance = balance.available.find(b => b.currency === 'jpy')?.amount || 0;
+    console.log(`📊 Account ${accountId}: Available balance = ${availableBalance} JPY`);
+
+    // 残高が振込手数料未満の場合はスキップ
+    if (availableBalance < TRANSFER_FEE) {
+      console.log(`⚠️  Skipping: Balance (${availableBalance}) < Transfer fee (${TRANSFER_FEE})`);
+      return res.json({
+        success: false,
+        accountId,
+        reason: 'insufficient_balance',
+        availableBalance,
+        transferFee: TRANSFER_FEE,
+      });
+    }
+
+    // 2. Account Debitで振込手数料を控除
+    const charge = await stripe.charges.create({
+      amount: TRANSFER_FEE,
+      currency: 'jpy',
+      source: accountId,
+      description: `振込手数料 (${new Date().toISOString().slice(0, 7)})`,
+    });
+
+    console.log(`✅ Transfer fee deducted: ${charge.id}`);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+    res.json({
+      success: true,
+      accountId,
+      chargeId: charge.id,
+      amount: TRANSFER_FEE,
+      previousBalance: availableBalance,
+      newBalance: availableBalance - TRANSFER_FEE,
+    });
+
+  } catch (error) {
+    console.error('❌ Error deducting transfer fee:', error.message);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 全Connected Accountの振込手数料を一括控除（バッチ処理）
+// 毎月24日にCronで実行: curl -X POST http://localhost:3001/api/stripe/batch-deduct-transfer-fees
+app.post('/api/stripe/batch-deduct-transfer-fees', async (req, res) => {
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('💰 Batch Transfer Fee Deduction Started');
+  console.log(`📅 Date: ${new Date().toISOString()}`);
+
+  try {
+    // 1. Stripe Account IDを持つ全プロバイダーを取得
+    const [providers] = await pool.query(
+      'SELECT id, email, stripe_account_id FROM providers WHERE stripe_account_id IS NOT NULL'
+    );
+
+    console.log(`📊 Found ${providers.length} providers with Stripe accounts`);
+
+    const results = {
+      total: providers.length,
+      success: [],
+      skipped: [],
+      failed: [],
+    };
+
+    // 2. 各プロバイダーに対して振込手数料を控除
+    for (const provider of providers) {
+      const accountId = provider.stripe_account_id;
+
+      try {
+        // 残高確認
+        const balance = await stripe.balance.retrieve({
+          stripeAccount: accountId,
+        });
+        const availableBalance = balance.available.find(b => b.currency === 'jpy')?.amount || 0;
+
+        // 残高不足の場合はスキップ
+        if (availableBalance < TRANSFER_FEE) {
+          console.log(`⚠️  [${provider.id}] Skipped: Balance ${availableBalance} < ${TRANSFER_FEE}`);
+          results.skipped.push({
+            providerId: provider.id,
+            accountId,
+            reason: 'insufficient_balance',
+            balance: availableBalance,
+          });
+          continue;
+        }
+
+        // Account Debitで控除
+        const charge = await stripe.charges.create({
+          amount: TRANSFER_FEE,
+          currency: 'jpy',
+          source: accountId,
+          description: `振込手数料 (${new Date().toISOString().slice(0, 7)})`,
+        });
+
+        console.log(`✅ [${provider.id}] Deducted ${TRANSFER_FEE} JPY (${charge.id})`);
+        results.success.push({
+          providerId: provider.id,
+          accountId,
+          chargeId: charge.id,
+          amount: TRANSFER_FEE,
+        });
+
+      } catch (providerError) {
+        console.error(`❌ [${provider.id}] Error: ${providerError.message}`);
+        results.failed.push({
+          providerId: provider.id,
+          accountId,
+          error: providerError.message,
+        });
+      }
+    }
+
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log(`📊 Results: ${results.success.length} success, ${results.skipped.length} skipped, ${results.failed.length} failed`);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+    res.json(results);
+
+  } catch (error) {
+    console.error('❌ Batch processing error:', error.message);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     res.status(500).json({ error: error.message });
   }
 });
