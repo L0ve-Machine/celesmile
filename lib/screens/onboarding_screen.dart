@@ -296,14 +296,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
             const SizedBox(height: 16),
 
-            // 3 Steps Images
+            // Step Image
             Expanded(
-              child: PageView(
-                children: [
-                  _buildStepImagePage('assets/images/2.png'),
-                  _buildStepImagePage('assets/images/3.png'),
-                  _buildStepImagePage('assets/images/4.png'),
-                ],
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Center(
+                  child: Image.asset(
+                    'assets/images/2.png',
+                    fit: BoxFit.contain,
+                  ),
+                ),
               ),
             ),
 

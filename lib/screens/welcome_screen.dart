@@ -64,22 +64,22 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                   ),
                 ),
 
-                const SizedBox(height: 75),
+                const SizedBox(height: 45),
 
                 // Illustration
                 Image.asset(
                   'assets/images/front.png',
                   width: double.infinity,
-                  height: 210,
+                  height: 195,
                   fit: BoxFit.contain,
                 ),
 
-                const SizedBox(height: 8),
+                const SizedBox(height: 7),
 
                 // Subtitle
                 _buildSubtitle(),
 
-                const SizedBox(height: 12),
+                const SizedBox(height: 11),
 
                 // Welcome title
                 const Text(
@@ -94,22 +94,22 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                   ),
                 ),
 
-                const SizedBox(height: 12),
+                const SizedBox(height: 11),
 
                 // Username field
                 _buildCompactField('メールアドレス', _usernameController, false),
 
-                const SizedBox(height: 8),
+                const SizedBox(height: 7),
 
                 // Password field
                 _buildCompactField('パスワード', _passwordController, true),
 
-                const SizedBox(height: 10),
+                const SizedBox(height: 9),
 
                 // Login link
                 _buildLoginLink(),
 
-                const SizedBox(height: 10),
+                const SizedBox(height: 9),
 
                 // Terms and conditions text
                 _buildTermsText(),
@@ -323,7 +323,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
 
   Widget _buildTermsText() {
     return const Text(
-      '登録することでCelestcareの利用規約・\nおよびプライバシーポリシーに同意するものとします',
+      '登録することでCelestcareの利用規約および\nプライバシーポリシーに同意するものとします',
       style: TextStyle(
         fontSize: 12,
         color: AppColors.textSecondary,
