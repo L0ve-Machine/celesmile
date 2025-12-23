@@ -53,7 +53,12 @@
       "Bash(flutter build:*)",
       "Bash(git stash drop:*)",
       "Bash(flutter build apk:*)",
-      "Bash(/root/flutter/bin/flutter analyze:*)"
+      "Bash(/root/flutter/bin/flutter analyze:*)",
+      "Bash(find:*)",
+      "Bash(ls:*)",
+      "Bash(wc:*)",
+      "Bash(mysql:*)",
+      "WebFetch(domain:docs.stripe.com)"
     ],
     "deny": [],
     "ask": []

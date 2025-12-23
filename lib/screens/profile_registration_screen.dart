@@ -837,7 +837,7 @@ class _ProfileRegistrationScreenState extends State<ProfileRegistrationScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '直接取引の禁止も付す',
+                  '本サービスの利用規約に基づき、当社を介さない本会員とケアスタッフ間の直接取引（直接契約・直接支払等）は一切禁止しております。',
                   style: TextStyle(
                     color: AppColors.textPrimary,
                     fontSize: 13,
