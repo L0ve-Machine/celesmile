@@ -1,54 +1,8 @@
-import 'package:flutter/material.dart';
-import '../constants/colors.dart';
+セレスマ（Celesmile）利用規約（会員）
 
-class TermsOfServiceScreen extends StatelessWidget {
-  const TermsOfServiceScreen({super.key});
+更新日：2025年09月27日
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          '利用規約',
-          style: TextStyle(
-            color: AppColors.textPrimary,
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        centerTitle: true,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'セレスマ（Celesmile）利用規約（会員）',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '更新日：2025年09月27日',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[600],
-              ),
-            ),
-            const SizedBox(height: 24),
-            const Text(
-              '''第1章 総則
+第1章 総則
 
 第1条（定義）
 本規約において使用する用語の定義は、次の各号のとおりとします。
@@ -208,17 +162,4 @@ class TermsOfServiceScreen extends StatelessWidget {
 第33条（合意管轄）
 本会員と当社との間で生じた紛争については、東京地方裁判所を第一審の専属的合意管轄裁判所とします。
 
-以上''',
-              style: TextStyle(
-                fontSize: 14,
-                color: AppColors.textPrimary,
-                height: 1.8,
-              ),
-            ),
-            const SizedBox(height: 40),
-          ],
-        ),
-      ),
-    );
-  }
-}
+以上
