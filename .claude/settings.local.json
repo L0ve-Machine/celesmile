@@ -58,7 +58,21 @@
       "Bash(ls:*)",
       "Bash(wc:*)",
       "Bash(mysql:*)",
-      "WebFetch(domain:docs.stripe.com)"
+      "WebFetch(domain:docs.stripe.com)",
+      "Bash(grep:*)",
+      "Bash(git ls-tree:*)",
+      "Bash(git checkout:*)",
+      "Bash(GIT_TERMINAL_PROMPT=0 git push:*)",
+      "Bash(GIT_ASKPASS=\"\" git push:*)",
+      "Bash(git -c credential.helper=\"\" push origin main)",
+      "Bash(git remote set-url:*)",
+      "Bash(apt update:*)",
+      "Bash(apt install:*)",
+      "Bash(systemctl stop:*)",
+      "Bash(freshclam:*)",
+      "Bash(systemctl start:*)",
+      "Bash(systemctl enable:*)",
+      "Bash(crontab:*)"
     ],
     "deny": [],
     "ask": []
