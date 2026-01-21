@@ -61,8 +61,8 @@ class _MenuRegistrationScreenState extends State<MenuRegistrationScreen> {
             // Parse duration options
             if (menu['duration_options'] != null) {
               if (menu['duration_options'] is List) {
-                // If already a list, cast to List<String>
-                item.durationOptions = List<String>.from(menu['duration_options']);
+                // If already a list, convert each element to String
+                item.durationOptions = (menu['duration_options'] as List).map((e) => e.toString()).toList();
               } else if (menu['duration_options'].toString().isNotEmpty) {
                 // If a string, split by comma
                 item.durationOptions = menu['duration_options'].toString().split(',');

@@ -1,5 +1,5 @@
-import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
+import 'mysql_service.dart';
+import 'auth_service.dart';
 
 // チャットメッセージモデル
 class ChatMessage {
@@ -9,6 +9,7 @@ class ChatMessage {
   final String message;
   final DateTime timestamp;
   final bool isRead;
+  final String senderType; // 'user' or 'provider'
 
   ChatMessage({
     required this.id,
@@ -17,6 +18,7 @@ class ChatMessage {
     required this.message,
     required this.timestamp,
     this.isRead = false,
+    this.senderType = 'user',
   });
 
   Map<String, dynamic> toJson() => {
@@ -26,15 +28,21 @@ class ChatMessage {
         'message': message,
         'timestamp': timestamp.toIso8601String(),
         'isRead': isRead,
+        'senderType': senderType,
       };
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) => ChatMessage(
-        id: json['id'],
-        senderId: json['senderId'],
-        senderName: json['senderName'],
-        message: json['message'],
-        timestamp: DateTime.parse(json['timestamp']),
-        isRead: json['isRead'] ?? false,
+        id: json['id'] ?? '',
+        senderId: json['senderId'] ?? json['sender_id'] ?? json['user_id'] ?? '',
+        senderName: json['senderName'] ?? json['sender_name'] ?? '',
+        message: json['message'] ?? '',
+        timestamp: json['timestamp'] != null
+            ? DateTime.parse(json['timestamp'])
+            : (json['created_at'] != null
+                ? DateTime.parse(json['created_at'])
+                : DateTime.now()),
+        isRead: json['isRead'] ?? json['is_read'] ?? false,
+        senderType: json['senderType'] ?? json['sender_type'] ?? 'user',
       );
 }
 
@@ -74,19 +82,39 @@ class ChatRoom {
         'unreadCount': unreadCount,
       };
 
-  factory ChatRoom.fromJson(Map<String, dynamic> json) => ChatRoom(
-        id: json['id'],
-        userId: json['userId'],
-        providerId: json['providerId'],
-        providerName: json['providerName'],
-        serviceName: json['serviceName'],
-        bookingId: json['bookingId'],
-        createdAt: DateTime.parse(json['createdAt']),
-        lastMessage: json['lastMessage'] != null
-            ? ChatMessage.fromJson(json['lastMessage'])
-            : null,
-        unreadCount: json['unreadCount'] ?? 0,
+  factory ChatRoom.fromJson(Map<String, dynamic> json) {
+    // last_messageがある場合はChatMessageを作成
+    ChatMessage? lastMsg;
+    if (json['last_message'] != null && json['last_message'].toString().isNotEmpty) {
+      lastMsg = ChatMessage(
+        id: 'last',
+        senderId: '',
+        senderName: '',
+        message: json['last_message'],
+        timestamp: json['last_message_time'] != null
+            ? DateTime.parse(json['last_message_time'])
+            : DateTime.now(),
       );
+    } else if (json['lastMessage'] != null) {
+      lastMsg = ChatMessage.fromJson(json['lastMessage']);
+    }
+
+    return ChatRoom(
+      id: json['id'] ?? '',
+      userId: json['userId'] ?? json['user_id'] ?? '',
+      providerId: json['providerId'] ?? json['provider_id'] ?? '',
+      providerName: json['providerName'] ?? json['provider_name'] ?? '不明',
+      serviceName: json['serviceName'] ?? json['service_name'] ?? '',
+      bookingId: json['bookingId'] ?? json['booking_id'] ?? '',
+      createdAt: json['createdAt'] != null
+          ? DateTime.parse(json['createdAt'])
+          : (json['created_at'] != null
+              ? DateTime.parse(json['created_at'])
+              : DateTime.now()),
+      lastMessage: lastMsg,
+      unreadCount: json['unreadCount'] ?? json['unread_count'] ?? 0,
+    );
+  }
 
   // 未読カウントを更新したコピーを返す
   ChatRoom copyWith({
@@ -116,19 +144,11 @@ class ChatRoom {
 
 /// チャットサービス
 ///
-/// 将来的にFirebaseに移行しやすいように、メソッド名とデータ構造を設計
-/// 現在はSharedPreferencesを使用してローカルに保存
+/// MySQLデータベースを使用してチャットデータを管理
 class ChatService {
   static final ChatService _instance = ChatService._internal();
   factory ChatService() => _instance;
   ChatService._internal();
-
-  // メモリ内キャッシュ
-  final Map<String, List<ChatMessage>> _messagesCache = {};
-  final List<ChatRoom> _chatRoomsCache = [];
-
-  static const String _chatRoomsKey = 'chat_rooms';
-  static const String _messagesKeyPrefix = 'chat_messages_';
 
   /// チャットルームを作成（予約完了時に呼び出す）
   Future<ChatRoom> createChatRoom({
@@ -145,11 +165,26 @@ class ChatService {
     print('   - serviceName: $serviceName');
     print('   - bookingId: $bookingId');
 
-    final chatRoomId = 'chat_${userId}_${providerId}_${DateTime.now().millisecondsSinceEpoch}';
+    final chatRoomId = 'room_${providerId}_${userId}_${DateTime.now().millisecondsSinceEpoch}';
     print('   - chatRoomId: $chatRoomId');
 
-    final chatRoom = ChatRoom(
+    // APIでチャットルームを作成
+    final result = await MySQLService.instance.createChatRoom(
       id: chatRoomId,
+      providerId: providerId,
+      userId: userId,
+      bookingId: bookingId,
+    );
+
+    String finalRoomId = chatRoomId;
+    if (result != null && result['existing'] == true) {
+      // 既存のルームがある場合はそのIDを使用
+      finalRoomId = result['id'];
+      print('   - 既存のチャットルームを使用: $finalRoomId');
+    }
+
+    final chatRoom = ChatRoom(
+      id: finalRoomId,
       userId: userId,
       providerId: providerId,
       providerName: providerName,
@@ -158,23 +193,9 @@ class ChatService {
       createdAt: DateTime.now(),
     );
 
-    // 全てのチャットルームを取得（全ユーザー分）
-    final allRooms = await _getAllChatRooms();
-    print('   - 既存チャットルーム数: ${allRooms.length}');
-
-    allRooms.insert(0, chatRoom);
-    print('   - 新しいチャットルーム数: ${allRooms.length}');
-
-    // SharedPreferencesに保存
-    await _saveChatRooms(allRooms);
-    print('   - SharedPreferencesに保存完了');
-
-    // キャッシュに追加
-    _chatRoomsCache.insert(0, chatRoom);
-
     // 初期メッセージを送信（システムメッセージ）
     await sendMessage(
-      chatRoomId: chatRoomId,
+      chatRoomId: finalRoomId,
       senderId: 'system',
       senderName: 'システム',
       message: '予約が確定しました。$providerNameさんとチャットを開始できます。',
@@ -184,76 +205,49 @@ class ChatService {
     return chatRoom;
   }
 
-  /// 全てのチャットルームを取得（フィルタリングなし）
-  Future<List<ChatRoom>> _getAllChatRooms() async {
-    final prefs = await SharedPreferences.getInstance();
-    final roomsJson = prefs.getString(_chatRoomsKey);
-
-    if (roomsJson == null) {
-      return [];
-    }
-
-    final List<dynamic> decoded = json.decode(roomsJson);
-    return decoded.map((r) => ChatRoom.fromJson(r)).toList();
-  }
-
-  /// チャットルーム一覧を取得
+  /// チャットルーム一覧を取得（購入者用）
   Future<List<ChatRoom>> getChatRooms(String userId) async {
     print('🔵 [ChatService] チャットルーム一覧取得: userId=$userId');
 
-    final prefs = await SharedPreferences.getInstance();
-    final roomsJson = prefs.getString(_chatRoomsKey);
+    final roomsData = await MySQLService.instance.getChatRoomsForUser(userId);
+    print('   - 取得したチャットルーム数: ${roomsData.length}');
 
-    if (roomsJson == null) {
-      print('   - チャットルームなし（SharedPreferencesが空）');
-      return [];
+    final rooms = roomsData.map((r) => ChatRoom.fromJson(r)).toList();
+
+    for (var room in rooms) {
+      print('     - ${room.id}: ${room.providerName}');
     }
 
-    final List<dynamic> decoded = json.decode(roomsJson);
-    final allRooms = decoded.map((r) => ChatRoom.fromJson(r)).toList();
-    print('   - 全チャットルーム数: ${allRooms.length}');
-
-    // 現在のユーザーに関連するチャットルームのみを返す
-    final userRooms = allRooms.where((room) => room.userId == userId || room.providerId == userId).toList();
-    print('   - ユーザー $userId のチャットルーム数: ${userRooms.length}');
-
-    for (var room in userRooms) {
-      print('     - ${room.id}: ${room.serviceName} (provider: ${room.providerName})');
-    }
-
-    return userRooms;
+    return rooms;
   }
 
   /// プロバイダー用：チャットルーム一覧を取得
   Future<List<ChatRoom>> getChatRoomsByProvider(String providerId) async {
-    final prefs = await SharedPreferences.getInstance();
-    final roomsJson = prefs.getString(_chatRoomsKey);
+    print('🔵 [ChatService] プロバイダーのチャットルーム一覧取得: providerId=$providerId');
 
-    if (roomsJson == null) {
-      return [];
+    final roomsData = await MySQLService.instance.getChatRoomsForProvider(providerId);
+    print('   - 取得したチャットルーム数: ${roomsData.length}');
+
+    final rooms = roomsData.map((r) => ChatRoom.fromJson(r)).toList();
+
+    for (var room in rooms) {
+      print('     - ${room.id}: ${room.userId}');
     }
 
-    final List<dynamic> decoded = json.decode(roomsJson);
-    final allRooms = decoded.map((r) => ChatRoom.fromJson(r)).toList();
-
-    return allRooms.where((room) => room.providerId == providerId).toList();
+    return rooms;
   }
 
   /// チャットルームをIDで取得
   Future<ChatRoom?> getChatRoomById(String chatRoomId) async {
-    final allRooms = await _getAllChatRooms();
-    try {
-      return allRooms.firstWhere((room) => room.id == chatRoomId);
-    } catch (e) {
+    print('🔵 [ChatService] チャットルーム取得: roomId=$chatRoomId');
+
+    final roomData = await MySQLService.instance.getChatRoomById(chatRoomId);
+    if (roomData == null) {
+      print('   - チャットルームが見つかりません');
       return null;
     }
-  }
 
-  /// チャットルームを保存
-  Future<void> _saveChatRooms(List<ChatRoom> rooms) async {
-    final prefs = await SharedPreferences.getInstance();
-    final roomsJson = json.encode(rooms.map((r) => r.toJson()).toList());
-    await prefs.setString(_chatRoomsKey, roomsJson);
+    return ChatRoom.fromJson(roomData);
   }
 
   /// メッセージを送信
@@ -263,149 +257,53 @@ class ChatService {
     required String senderName,
     required String message,
   }) async {
+    print('🔵 [ChatService] メッセージ送信: roomId=$chatRoomId');
+
+    // sender_typeを判定
+    final currentProviderId = AuthService.currentUserProviderId;
+    final isProvider = currentProviderId != null && senderId != 'system';
+    final senderType = senderId == 'system' ? 'user' : (isProvider ? 'provider' : 'user');
+
+    // APIでメッセージを送信
+    final result = await MySQLService.instance.sendMessageToChatRoom(
+      roomId: chatRoomId,
+      senderType: senderType,
+      message: message,
+    );
+
+    final messageId = result?['id'] ?? 'msg_${DateTime.now().millisecondsSinceEpoch}';
+
     final chatMessage = ChatMessage(
-      id: 'msg_${DateTime.now().millisecondsSinceEpoch}',
+      id: messageId,
       senderId: senderId,
       senderName: senderName,
       message: message,
       timestamp: DateTime.now(),
       isRead: false,
+      senderType: senderType,
     );
 
-    // メッセージをキャッシュに追加
-    if (!_messagesCache.containsKey(chatRoomId)) {
-      _messagesCache[chatRoomId] = [];
-    }
-    _messagesCache[chatRoomId]!.insert(0, chatMessage);
-
-    // SharedPreferencesに保存
-    await _saveMessages(chatRoomId, _messagesCache[chatRoomId]!);
-
-    // チャットルームの最終メッセージと未読カウントを更新
-    await _updateChatRoomLastMessage(chatRoomId, chatMessage, senderId);
-
+    print('   - メッセージ送信完了: $messageId');
     return chatMessage;
   }
 
   /// メッセージ一覧を取得
   Future<List<ChatMessage>> getMessages(String chatRoomId) async {
-    // キャッシュにあればそれを返す
-    if (_messagesCache.containsKey(chatRoomId)) {
-      return List.from(_messagesCache[chatRoomId]!);
-    }
+    print('🔵 [ChatService] メッセージ一覧取得: roomId=$chatRoomId');
 
-    // SharedPreferencesから読み込み
-    final prefs = await SharedPreferences.getInstance();
-    final messagesJson = prefs.getString('$_messagesKeyPrefix$chatRoomId');
+    final messagesData = await MySQLService.instance.getChatRoomMessages(chatRoomId);
+    print('   - 取得したメッセージ数: ${messagesData.length}');
 
-    if (messagesJson == null) {
-      return [];
-    }
+    final messages = messagesData.map((m) => ChatMessage.fromJson(m)).toList();
 
-    final List<dynamic> decoded = json.decode(messagesJson);
-    final messages = decoded.map((m) => ChatMessage.fromJson(m)).toList();
-
-    // キャッシュに保存
-    _messagesCache[chatRoomId] = messages;
-
-    return messages;
-  }
-
-  /// メッセージを保存
-  Future<void> _saveMessages(String chatRoomId, List<ChatMessage> messages) async {
-    final prefs = await SharedPreferences.getInstance();
-    final messagesJson = json.encode(messages.map((m) => m.toJson()).toList());
-    await prefs.setString('$_messagesKeyPrefix$chatRoomId', messagesJson);
-  }
-
-  /// チャットルームの最終メッセージを更新
-  Future<void> _updateChatRoomLastMessage(
-    String chatRoomId,
-    ChatMessage lastMessage,
-    String senderId,
-  ) async {
-    print('🔵 [ChatService] チャットルーム最終メッセージ更新: $chatRoomId');
-
-    final rooms = await _getAllChatRooms();
-
-    final index = rooms.indexWhere((r) => r.id == chatRoomId);
-    if (index == -1) {
-      print('   ⚠️ チャットルームが見つかりません: $chatRoomId');
-      return;
-    }
-
-    final room = rooms[index];
-
-    // 未読カウントを増やす（送信者以外の場合）
-    int newUnreadCount = room.unreadCount;
-
-    // 更新されたチャットルーム
-    final updatedRoom = room.copyWith(
-      lastMessage: lastMessage,
-      unreadCount: newUnreadCount,
-    );
-
-    rooms[index] = updatedRoom;
-
-    // 最新メッセージがあるチャットルームを先頭に移動
-    rooms.removeAt(index);
-    rooms.insert(0, updatedRoom);
-
-    await _saveChatRooms(rooms);
-    print('   - 最終メッセージ更新完了');
-
-    // キャッシュも更新
-    final cacheIndex = _chatRoomsCache.indexWhere((r) => r.id == chatRoomId);
-    if (cacheIndex != -1) {
-      _chatRoomsCache.removeAt(cacheIndex);
-      _chatRoomsCache.insert(0, updatedRoom);
-    }
+    // 最新が最初になるように逆順で返す
+    return messages.reversed.toList();
   }
 
   /// メッセージを既読にする
   Future<void> markMessagesAsRead(String chatRoomId, String userId) async {
-    final messages = await getMessages(chatRoomId);
-
-    bool hasUnread = false;
-    final updatedMessages = messages.map((msg) {
-      if (msg.senderId != userId && !msg.isRead) {
-        hasUnread = true;
-        return ChatMessage(
-          id: msg.id,
-          senderId: msg.senderId,
-          senderName: msg.senderName,
-          message: msg.message,
-          timestamp: msg.timestamp,
-          isRead: true,
-        );
-      }
-      return msg;
-    }).toList();
-
-    if (hasUnread) {
-      _messagesCache[chatRoomId] = updatedMessages;
-      await _saveMessages(chatRoomId, updatedMessages);
-
-      // チャットルームの未読カウントを0にする
-      await _resetUnreadCount(chatRoomId);
-    }
-  }
-
-  /// 未読カウントをリセット
-  Future<void> _resetUnreadCount(String chatRoomId) async {
-    final rooms = await _getAllChatRooms();
-
-    final index = rooms.indexWhere((r) => r.id == chatRoomId);
-    if (index == -1) return;
-
-    rooms[index] = rooms[index].copyWith(unreadCount: 0);
-    await _saveChatRooms(rooms);
-
-    // キャッシュも更新
-    final cacheIndex = _chatRoomsCache.indexWhere((r) => r.id == chatRoomId);
-    if (cacheIndex != -1) {
-      _chatRoomsCache[cacheIndex] = _chatRoomsCache[cacheIndex].copyWith(unreadCount: 0);
-    }
+    // TODO: API側に既読機能を追加
+    print('🔵 [ChatService] メッセージ既読処理: roomId=$chatRoomId');
   }
 
   /// 全体の未読メッセージ数を取得
@@ -414,25 +312,9 @@ class ChatService {
     return rooms.fold<int>(0, (sum, room) => sum + room.unreadCount);
   }
 
-  /// チャットルームを削除
+  /// チャットルームを削除（現在は未実装）
   Future<void> deleteChatRoom(String chatRoomId) async {
-    final prefs = await SharedPreferences.getInstance();
-    final rooms = await _getAllChatRooms();
-
-    rooms.removeWhere((r) => r.id == chatRoomId);
-    await _saveChatRooms(rooms);
-
-    // メッセージも削除
-    await prefs.remove('$_messagesKeyPrefix$chatRoomId');
-
-    // キャッシュからも削除
-    _chatRoomsCache.removeWhere((r) => r.id == chatRoomId);
-    _messagesCache.remove(chatRoomId);
-  }
-
-  /// キャッシュをクリア（ログアウト時など）
-  void clearCache() {
-    _messagesCache.clear();
-    _chatRoomsCache.clear();
+    // TODO: API側に削除機能を追加
+    print('🔵 [ChatService] チャットルーム削除（未実装）: roomId=$chatRoomId');
   }
 }

@@ -197,6 +197,101 @@ class MySQLService {
     return response.statusCode == 200;
   }
 
+  // ==================== Chat Room Methods ====================
+
+  /// Create a chat room
+  Future<Map<String, dynamic>?> createChatRoom({
+    required String id,
+    required String providerId,
+    required String userId,
+    String? bookingId,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/chat-rooms'),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({
+        'id': id,
+        'provider_id': providerId,
+        'user_id': userId,
+        'booking_id': bookingId,
+      }),
+    );
+    if (response.statusCode == 200) {
+      return json.decode(response.body);
+    }
+    return null;
+  }
+
+  /// Get chat rooms for provider
+  Future<List<Map<String, dynamic>>> getChatRoomsForProvider(String providerId) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/chat-rooms/provider/$providerId'),
+      headers: _getHeaders(includeAuth: true),
+    );
+    if (response.statusCode == 200) {
+      return List<Map<String, dynamic>>.from(json.decode(response.body));
+    }
+    return [];
+  }
+
+  /// Get chat rooms for user (customer)
+  Future<List<Map<String, dynamic>>> getChatRoomsForUser(String userId) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/chat-rooms/user/$userId'),
+      headers: _getHeaders(),
+    );
+    if (response.statusCode == 200) {
+      return List<Map<String, dynamic>>.from(json.decode(response.body));
+    }
+    return [];
+  }
+
+  /// Get chat room by ID
+  Future<Map<String, dynamic>?> getChatRoomById(String roomId) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/chat-rooms/$roomId'),
+      headers: _getHeaders(),
+    );
+    if (response.statusCode == 200) {
+      return json.decode(response.body);
+    }
+    return null;
+  }
+
+  /// Get messages for a chat room
+  Future<List<Map<String, dynamic>>> getChatRoomMessages(String roomId) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/chat-rooms/$roomId/messages'),
+      headers: _getHeaders(),
+    );
+    if (response.statusCode == 200) {
+      return List<Map<String, dynamic>>.from(json.decode(response.body));
+    }
+    return [];
+  }
+
+  /// Send message to a chat room
+  Future<Map<String, dynamic>?> sendMessageToChatRoom({
+    required String roomId,
+    required String senderType,
+    required String message,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/chat-rooms/$roomId/messages'),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({
+        'sender_type': senderType,
+        'message': message,
+      }),
+    );
+    if (response.statusCode == 200) {
+      return json.decode(response.body);
+    }
+    return null;
+  }
+
+  // ==================== End Chat Room Methods ====================
+
   // Update booking status
   Future<bool> updateBookingStatus(String bookingId, String status) async {
     final response = await http.patch(

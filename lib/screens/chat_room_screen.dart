@@ -220,7 +220,10 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              _chatRoom!.providerName,
+              // プロバイダーの場合はユーザー名を、ユーザーの場合はプロバイダー名を表示
+              AuthService.currentUserProviderId != null
+                  ? _chatRoom!.userId
+                  : _chatRoom!.providerName,
               style: const TextStyle(
                 color: AppColors.textPrimary,
                 fontSize: 16,
@@ -348,9 +351,14 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   }
 
   Widget _buildMessageBubble(ChatMessage message) {
-    final currentUser = AuthService.currentUser;
-    final isMyMessage = message.senderId == currentUser;
-    final isSystemMessage = message.senderId == 'system';
+    // プロバイダーかユーザーかで自分のメッセージかを判定
+    final currentProviderId = AuthService.currentUserProviderId;
+    final isProvider = currentProviderId != null;
+    // sender_typeで判定（APIからはsender_typeが返る）
+    final isMyMessage = isProvider
+        ? message.senderType == 'provider'
+        : message.senderType == 'user';
+    final isSystemMessage = message.senderId == 'system' || message.senderType == 'system';
 
     if (isSystemMessage) {
       return Padding(
@@ -405,7 +413,10 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
                   Padding(
                     padding: const EdgeInsets.only(left: 4, bottom: 4),
                     child: Text(
-                      message.senderName,
+                      // sender_typeに基づいて名前を表示
+                      message.senderType == 'provider'
+                          ? _chatRoom!.providerName
+                          : _chatRoom!.userId,
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.grey[600],

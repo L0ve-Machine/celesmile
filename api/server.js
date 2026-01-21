@@ -171,8 +171,8 @@ const checkDeviceBlock = (req, res, next) => {
 
 // General API rate limiter (prevents DoS)
 const generalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 1000, // Limit each IP to 1000 requests per minute
   message: {
     error: 'Too many requests from this IP, please try again later.',
     type: 'RATE_LIMIT_EXCEEDED'
@@ -346,26 +346,26 @@ app.get('/api/revenue-summary/:providerId', authenticateToken, async (req, res) 
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth() + 1;
 
-    const [thisMonth] = await pool.query(
-      'SELECT COALESCE(SUM(amount), 0) as total FROM revenues WHERE provider_id = ? AND YEAR(date) = ? AND MONTH(date) = ?',
-      [req.params.providerId, currentYear, currentMonth]
+    // 1クエリで全ての集計を取得（パフォーマンス改善: 3回→1回）
+    const [result] = await pool.query(
+      `SELECT
+        COALESCE(SUM(CASE WHEN YEAR(date) = ? AND MONTH(date) = ? THEN amount ELSE 0 END), 0) as thisMonthTotal,
+        COALESCE(SUM(CASE WHEN status = 'pending' THEN amount ELSE 0 END), 0) as pendingTotal,
+        COALESCE(SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END), 0) as paidTotal
+      FROM revenues
+      WHERE provider_id = ?`,
+      [currentYear, currentMonth, req.params.providerId]
     );
 
-    const [pending] = await pool.query(
-      'SELECT COALESCE(SUM(amount), 0) as total FROM revenues WHERE provider_id = ? AND status = ?',
-      [req.params.providerId, 'pending']
-    );
-
-    const [paid] = await pool.query(
-      'SELECT COALESCE(SUM(amount), 0) as total FROM revenues WHERE provider_id = ? AND status = ?',
-      [req.params.providerId, 'paid']
-    );
+    const thisMonthTotal = parseInt(result[0].thisMonthTotal) || 0;
+    const pendingTotal = parseInt(result[0].pendingTotal) || 0;
+    const paidTotal = parseInt(result[0].paidTotal) || 0;
 
     res.json({
-      thisMonthTotal: parseInt(thisMonth[0].total) || 0,
-      pendingTotal: parseInt(pending[0].total) || 0,
-      paidTotal: parseInt(paid[0].total) || 0,
-      totalRevenue: (parseInt(pending[0].total) || 0) + (parseInt(paid[0].total) || 0)
+      thisMonthTotal,
+      pendingTotal,
+      paidTotal,
+      totalRevenue: pendingTotal + paidTotal
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -444,7 +444,7 @@ app.get('/api/services', async (req, res) => {
         query += timeCondition;
       }
     } else {
-      query = 'SELECT * FROM services WHERE is_active = 1';
+      query = 'SELECT * FROM services s WHERE s.is_active = 1';
     }
 
     if (category) {
@@ -460,20 +460,12 @@ app.get('/api/services', async (req, res) => {
       params.push(location);
     }
     if (search) {
-      if (date) {
-        query += ' AND (s.title LIKE ? OR s.description LIKE ? OR s.provider_name LIKE ?)';
-      } else {
-        query += ' AND (title LIKE ? OR description LIKE ? OR provider_name LIKE ?)';
-      }
+      query += ' AND (s.title LIKE ? OR s.description LIKE ? OR s.provider_name LIKE ?)';
       const searchPattern = `%${search}%`;
       params.push(searchPattern, searchPattern, searchPattern);
     }
 
-    if (date) {
-      query += ' ORDER BY s.rating DESC, s.reviews_count DESC';
-    } else {
-      query += ' ORDER BY rating DESC, reviews_count DESC';
-    }
+    query += ' ORDER BY s.rating DESC, s.reviews_count DESC';
 
     if (limit) {
       query += ' LIMIT ?';
@@ -756,19 +748,205 @@ app.get('/api/chats/:providerId', authenticateToken, async (req, res) => {
   }
 });
 
-// Send chat message
+// Send chat message (legacy - keep for backwards compatibility)
 app.post('/api/chats', async (req, res) => {
   try {
-    const { id, provider_id, user_id, sender_type, message } = req.body;
+    const { id, provider_id, user_id, sender_type, message, chat_room_id } = req.body;
     const [result] = await pool.query(
-      'INSERT INTO chats (id, provider_id, user_id, sender_type, message) VALUES (?, ?, ?, ?, ?)',
-      [id, provider_id, user_id, sender_type, message]
+      'INSERT INTO chats (id, chat_room_id, provider_id, user_id, sender_type, message) VALUES (?, ?, ?, ?, ?, ?)',
+      [id, chat_room_id, provider_id, user_id, sender_type, message]
     );
     res.json({ success: true, id });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
+
+// ==================== Chat Room APIs ====================
+
+// Create chat room
+app.post('/api/chat-rooms', async (req, res) => {
+  try {
+    const { id, provider_id, user_id, booking_id } = req.body;
+
+    // Check if room already exists for this provider-user pair
+    const [existing] = await pool.query(
+      'SELECT * FROM chat_rooms WHERE provider_id = ? AND user_id = ?',
+      [provider_id, user_id]
+    );
+
+    if (existing.length > 0) {
+      // Return existing room
+      return res.json({ success: true, id: existing[0].id, existing: true });
+    }
+
+    // Create new room
+    await pool.query(
+      'INSERT INTO chat_rooms (id, provider_id, user_id, booking_id) VALUES (?, ?, ?, ?)',
+      [id, provider_id, user_id, booking_id]
+    );
+    res.json({ success: true, id, existing: false });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get chat rooms for provider
+app.get('/api/chat-rooms/provider/:providerId', authenticateToken, async (req, res) => {
+  try {
+    const { providerId } = req.params;
+
+    // Check authorization
+    if (req.user.id !== providerId && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    const [rooms] = await pool.query(`
+      SELECT
+        cr.id,
+        cr.provider_id,
+        cr.user_id,
+        cr.booking_id,
+        cr.created_at,
+        p.name as provider_name,
+        b.service_name,
+        (SELECT message FROM chats WHERE chat_room_id = cr.id ORDER BY created_at DESC LIMIT 1) as last_message,
+        (SELECT created_at FROM chats WHERE chat_room_id = cr.id ORDER BY created_at DESC LIMIT 1) as last_message_time,
+        (SELECT COUNT(*) FROM chats WHERE chat_room_id = cr.id AND sender_type = 'user') as unread_count
+      FROM chat_rooms cr
+      LEFT JOIN providers p ON cr.provider_id = p.id
+      LEFT JOIN bookings b ON cr.booking_id = b.id
+      WHERE cr.provider_id = ?
+      ORDER BY last_message_time DESC
+    `, [providerId]);
+
+    res.json(rooms);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get chat rooms for user (customer)
+app.get('/api/chat-rooms/user/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const [rooms] = await pool.query(`
+      SELECT
+        cr.id,
+        cr.provider_id,
+        cr.user_id,
+        cr.booking_id,
+        cr.created_at,
+        p.name as provider_name,
+        b.service_name,
+        (SELECT message FROM chats WHERE chat_room_id = cr.id ORDER BY created_at DESC LIMIT 1) as last_message,
+        (SELECT created_at FROM chats WHERE chat_room_id = cr.id ORDER BY created_at DESC LIMIT 1) as last_message_time,
+        (SELECT COUNT(*) FROM chats WHERE chat_room_id = cr.id AND sender_type = 'provider') as unread_count
+      FROM chat_rooms cr
+      LEFT JOIN providers p ON cr.provider_id = p.id
+      LEFT JOIN bookings b ON cr.booking_id = b.id
+      WHERE cr.user_id = ?
+      ORDER BY last_message_time DESC
+    `, [userId]);
+
+    res.json(rooms);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get chat room by ID
+app.get('/api/chat-rooms/:roomId', async (req, res) => {
+  try {
+    const { roomId } = req.params;
+
+    const [rooms] = await pool.query(`
+      SELECT
+        cr.id,
+        cr.provider_id,
+        cr.user_id,
+        cr.booking_id,
+        cr.created_at,
+        p.name as provider_name,
+        b.service_name
+      FROM chat_rooms cr
+      LEFT JOIN providers p ON cr.provider_id = p.id
+      LEFT JOIN bookings b ON cr.booking_id = b.id
+      WHERE cr.id = ?
+    `, [roomId]);
+
+    if (rooms.length === 0) {
+      return res.status(404).json({ error: 'Chat room not found' });
+    }
+
+    res.json(rooms[0]);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get messages for a chat room
+app.get('/api/chat-rooms/:roomId/messages', async (req, res) => {
+  try {
+    const { roomId } = req.params;
+
+    const [messages] = await pool.query(`
+      SELECT
+        c.id,
+        c.chat_room_id,
+        c.provider_id,
+        c.user_id,
+        c.sender_type,
+        c.message,
+        c.created_at,
+        CASE
+          WHEN c.sender_type = 'provider' THEN p.name
+          ELSE c.user_id
+        END as sender_name
+      FROM chats c
+      LEFT JOIN providers p ON c.provider_id = p.id
+      WHERE c.chat_room_id = ?
+      ORDER BY c.created_at ASC
+    `, [roomId]);
+
+    res.json(messages);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Send message to a chat room
+app.post('/api/chat-rooms/:roomId/messages', async (req, res) => {
+  try {
+    const { roomId } = req.params;
+    const { sender_type, message } = req.body;
+
+    // Get chat room info
+    const [rooms] = await pool.query(
+      'SELECT provider_id, user_id FROM chat_rooms WHERE id = ?',
+      [roomId]
+    );
+
+    if (rooms.length === 0) {
+      return res.status(404).json({ error: 'Chat room not found' });
+    }
+
+    const room = rooms[0];
+    const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    await pool.query(
+      'INSERT INTO chats (id, chat_room_id, provider_id, user_id, sender_type, message) VALUES (?, ?, ?, ?, ?, ?)',
+      [messageId, roomId, room.provider_id, room.user_id, sender_type, message]
+    );
+
+    res.json({ success: true, id: messageId });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ==================== End Chat Room APIs ====================
 
 // Create new booking
 app.post('/api/bookings', async (req, res) => {

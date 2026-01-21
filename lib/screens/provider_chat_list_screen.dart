@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../constants/colors.dart';
-import '../services/mysql_service.dart';
+import '../services/chat_service.dart';
 
 /// プロバイダー用チャット一覧画面
 class ProviderChatListScreen extends StatefulWidget {
@@ -11,7 +11,8 @@ class ProviderChatListScreen extends StatefulWidget {
 }
 
 class _ProviderChatListScreenState extends State<ProviderChatListScreen> {
-  List<Map<String, dynamic>> _chatRooms = [];
+  final ChatService _chatService = ChatService();
+  List<ChatRoom> _chatRooms = [];
   bool _isLoading = true;
   String? _providerId;
 
@@ -31,50 +32,7 @@ class _ProviderChatListScreenState extends State<ProviderChatListScreen> {
     });
 
     try {
-      final chats = await MySQLService.instance.getChats(_providerId!);
-
-      // Group chats by user_id to create "rooms"
-      final Map<String, Map<String, dynamic>> roomsMap = {};
-
-      for (var chat in chats) {
-        final userId = chat['user_id'] ?? '';
-        final message = chat['message'] ?? '';
-        final senderType = chat['sender_type'] ?? '';
-        final createdAt = DateTime.parse(chat['created_at'] ?? DateTime.now().toString());
-
-        if (!roomsMap.containsKey(userId)) {
-          roomsMap[userId] = {
-            'user_id': userId,
-            'last_message': message,
-            'last_message_time': createdAt,
-            'unread_count': 0,
-            'messages': <Map<String, dynamic>>[],
-          };
-        }
-
-        // Update last message if this one is newer
-        final currentLastTime = roomsMap[userId]!['last_message_time'] as DateTime;
-        if (createdAt.isAfter(currentLastTime)) {
-          roomsMap[userId]!['last_message'] = message;
-          roomsMap[userId]!['last_message_time'] = createdAt;
-        }
-
-        // Count unread messages (messages from user that haven't been read)
-        if (senderType == 'user') {
-          roomsMap[userId]!['unread_count'] = (roomsMap[userId]!['unread_count'] as int) + 1;
-        }
-
-        // Add to messages list
-        (roomsMap[userId]!['messages'] as List<Map<String, dynamic>>).add(chat);
-      }
-
-      // Convert to list and sort by last message time
-      final rooms = roomsMap.values.toList();
-      rooms.sort((a, b) {
-        final aTime = a['last_message_time'] as DateTime;
-        final bTime = b['last_message_time'] as DateTime;
-        return bTime.compareTo(aTime);
-      });
+      final rooms = await _chatService.getChatRoomsByProvider(_providerId!);
 
       setState(() {
         _chatRooms = rooms;
@@ -223,19 +181,23 @@ class _ProviderChatListScreenState extends State<ProviderChatListScreen> {
     );
   }
 
-  Widget _buildChatRoomTile(Map<String, dynamic> chatRoom) {
-    final userId = chatRoom['user_id'] ?? '';
-    final lastMessageText = chatRoom['last_message'] ?? 'メッセージがありません';
-    final lastMessageTime = chatRoom['last_message_time'] as DateTime? ?? DateTime.now();
-    final unreadCount = chatRoom['unread_count'] ?? 0;
+  Widget _buildChatRoomTile(ChatRoom chatRoom) {
+    final userId = chatRoom.userId;
+    final lastMessageText = chatRoom.lastMessage?.message ?? 'メッセージがありません';
+    final lastMessageTime = chatRoom.lastMessage?.timestamp ?? chatRoom.createdAt;
+    final unreadCount = chatRoom.unreadCount;
     final hasUnread = unreadCount > 0;
 
     return InkWell(
-      onTap: () {
-        // For now, just show a message since we don't have a full chat room implementation
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$userId とのチャットを開く')),
+      onTap: () async {
+        // チャットルーム画面に遷移
+        await Navigator.pushNamed(
+          context,
+          '/chat-room',
+          arguments: chatRoom.id,
         );
+        // チャット画面から戻ったら再読み込み
+        _loadChatRooms();
       },
       child: Container(
         color: Colors.white,
@@ -249,7 +211,7 @@ class _ProviderChatListScreenState extends State<ProviderChatListScreen> {
                 CircleAvatar(
                   radius: 28,
                   backgroundColor: AppColors.primaryOrange.withOpacity(0.2),
-                  child: Icon(
+                  child: const Icon(
                     Icons.person,
                     color: AppColors.primaryOrange,
                     size: 28,
@@ -290,7 +252,7 @@ class _ProviderChatListScreenState extends State<ProviderChatListScreen> {
                     children: [
                       Expanded(
                         child: Text(
-                          userId,
+                          userId.isNotEmpty ? userId : '不明なユーザー',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: hasUnread ? FontWeight.bold : FontWeight.w600,

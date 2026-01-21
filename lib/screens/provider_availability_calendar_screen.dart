@@ -153,26 +153,33 @@ class _ProviderAvailabilityCalendarScreenState extends State<ProviderAvailabilit
         normalizedAvailability[normalizedDate] = dateEntry.value;
       }
 
-      // Convert local state to API format and save each slot
+      // Build list of all availability data to save
+      final List<Map<String, dynamic>> allAvailabilityData = [];
       for (var dateEntry in normalizedAvailability.entries) {
         final date = dateEntry.key;
         final slots = dateEntry.value;
 
-        // First, mark all slots for this date as unavailable, then set available ones
         for (var slot in _timeSlots) {
           final timeSlot = '${slot.startTime}-${slot.endTime}';
           final isAvailable = slots.any((s) => s.startTime == slot.startTime && s.endTime == slot.endTime);
 
-          final availabilityData = {
+          allAvailabilityData.add({
             'id': 'avail_${_providerId}_${date.replaceAll('-', '')}_${slot.startTime.replaceAll(':', '')}',
             'provider_id': _providerId,
             'date': date,
             'time_slot': timeSlot,
             'is_available': isAvailable ? 1 : 0,
-          };
-
-          await MySQLService.instance.updateAvailability(availabilityData);
+          });
         }
+      }
+
+      // Save in batches of 10 for parallel execution (matches DB connection pool size)
+      const batchSize = 10;
+      for (var i = 0; i < allAvailabilityData.length; i += batchSize) {
+        final batch = allAvailabilityData.skip(i).take(batchSize).toList();
+        await Future.wait(
+          batch.map((data) => MySQLService.instance.updateAvailability(data)),
+        );
       }
 
       // Update _availability with normalized keys before reloading
