@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_stripe/flutter_stripe.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
@@ -79,9 +80,7 @@ class StripeService {
       print('   - Payment Intent ID: $paymentIntentId');
 
       // Web環境かどうかをチェック
-      bool isWeb = identical(0, 0.0);
-
-      if (isWeb) {
+      if (kIsWeb) {
         // WEB: Payment Sheetはサポートされていないため、代替処理
         print('   ⚠️  Web環境: Payment Sheet非対応のため、テストモードで自動承認');
 
@@ -95,12 +94,13 @@ class StripeService {
         };
       } else {
         // MOBILE: 通常のPayment Sheet処理
-        // 2. Payment Sheetを初期化
+        // 2. Payment Sheetを初期化（Connected Account用にstripeAccountIdを指定）
         await Stripe.instance.initPaymentSheet(
           paymentSheetParameters: SetupPaymentSheetParameters(
             paymentIntentClientSecret: clientSecret,
             merchantDisplayName: 'Celesmile',
             style: ThemeMode.system,
+            stripeAccountId: stripeAccountId,
           ),
         );
 
@@ -174,18 +174,20 @@ class StripeService {
       if (response.statusCode == 200) {
         final result = json.decode(response.body);
         final status = result['status'] as String?;
+        final connectedAccountId = result['stripeAccountId'] as String?;
 
         // 決済が成功したか確認
         if (status == 'succeeded' || status == 'processing') {
           return true;
         } else if (status == 'requires_action') {
           // 3Dセキュア認証が必要な場合
-          // Payment Sheetを使用して認証を完了
+          // Payment Sheetを使用して認証を完了（Connected Account用にstripeAccountIdを指定）
           await Stripe.instance.initPaymentSheet(
             paymentSheetParameters: SetupPaymentSheetParameters(
               paymentIntentClientSecret: clientSecret,
               merchantDisplayName: 'Celesmile',
               style: ThemeMode.system,
+              stripeAccountId: connectedAccountId,
             ),
           );
           await Stripe.instance.presentPaymentSheet();
