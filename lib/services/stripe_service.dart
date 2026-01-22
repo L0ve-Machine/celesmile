@@ -94,13 +94,17 @@ class StripeService {
         };
       } else {
         // MOBILE: 通常のPayment Sheet処理
-        // 2. Payment Sheetを初期化（Connected Account用にstripeAccountIdを指定）
+        // 2. Connected Account用にstripeAccountIdをグローバル設定
+        if (stripeAccountId != null) {
+          Stripe.stripeAccountId = stripeAccountId;
+        }
+
+        // 3. Payment Sheetを初期化
         await Stripe.instance.initPaymentSheet(
           paymentSheetParameters: SetupPaymentSheetParameters(
             paymentIntentClientSecret: clientSecret,
             merchantDisplayName: 'Celesmile',
             style: ThemeMode.system,
-            stripeAccountId: stripeAccountId,
           ),
         );
 
@@ -181,13 +185,17 @@ class StripeService {
           return true;
         } else if (status == 'requires_action') {
           // 3Dセキュア認証が必要な場合
-          // Payment Sheetを使用して認証を完了（Connected Account用にstripeAccountIdを指定）
+          // Connected Account用にstripeAccountIdをグローバル設定
+          if (connectedAccountId != null) {
+            Stripe.stripeAccountId = connectedAccountId;
+          }
+
+          // Payment Sheetを使用して認証を完了
           await Stripe.instance.initPaymentSheet(
             paymentSheetParameters: SetupPaymentSheetParameters(
               paymentIntentClientSecret: clientSecret,
               merchantDisplayName: 'Celesmile',
               style: ThemeMode.system,
-              stripeAccountId: connectedAccountId,
             ),
           );
           await Stripe.instance.presentPaymentSheet();
