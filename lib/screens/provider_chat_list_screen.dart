@@ -213,8 +213,6 @@ class _ProviderChatListScreenState extends State<ProviderChatListScreen> {
                 size: 28,
               ),
             ),
-              ],
-            ),
             const SizedBox(width: 12),
 
             // チャット情報
