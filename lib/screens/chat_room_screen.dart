@@ -134,11 +134,16 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
 
       final senderName = currentUserProfile?.name ?? currentUser;
 
+      // チャットルームにおける自分の役割で sender_type を判定
+      // チャットルームの user_id と現在のユーザーが一致すれば 'user'、そうでなければ 'provider'
+      final senderType = _chatRoom?.userId == currentUser ? 'user' : 'provider';
+
       await _chatService.sendMessage(
         chatRoomId: _chatRoomId!,
         senderId: currentUser,
         senderName: senderName,
         message: messageText,
+        senderType: senderType,
       );
 
       // メッセージ送信後、入力欄をクリア
@@ -345,19 +350,20 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   }
 
   Widget _buildMessageBubble(ChatMessage message) {
-    // プロバイダーかユーザーかで自分のメッセージかを判定
-    final currentProviderId = AuthService.currentUserProviderId;
+    // チャットルームにおける自分の役割で判定
+    // チャットルームの user_id と現在のユーザーが一致すれば、自分は 'user' 側
     final currentUser = AuthService.currentUser;
-    final isProvider = currentProviderId != null;
-    // sender_typeで判定（APIからはsender_typeが返る）
-    final isMyMessage = isProvider
-        ? message.senderType == 'provider'
-        : message.senderType == 'user';
+    final isUserInThisRoom = _chatRoom?.userId == currentUser;
+
+    // 自分の役割と message.senderType が一致すれば自分のメッセージ
+    final isMyMessage = isUserInThisRoom
+        ? message.senderType == 'user'
+        : message.senderType == 'provider';
     final isSystemMessage = message.senderId == 'system' || message.senderType == 'system';
 
     // デバッグログ
-    print('🔵 [ChatBubble] currentUser: $currentUser, currentProviderId: $currentProviderId');
-    print('🔵 [ChatBubble] isProvider: $isProvider, senderType: ${message.senderType}, isMyMessage: $isMyMessage');
+    print('🔵 [ChatBubble] currentUser: $currentUser, chatRoom.userId: ${_chatRoom?.userId}');
+    print('🔵 [ChatBubble] isUserInThisRoom: $isUserInThisRoom, senderType: ${message.senderType}, isMyMessage: $isMyMessage');
 
     if (isSystemMessage) {
       return Padding(

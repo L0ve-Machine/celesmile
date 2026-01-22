@@ -227,13 +227,9 @@ class ChatService {
     required String senderId,
     required String senderName,
     required String message,
+    required String senderType,
   }) async {
-    print('🔵 [ChatService] メッセージ送信: roomId=$chatRoomId');
-
-    // sender_typeを判定
-    final currentProviderId = AuthService.currentUserProviderId;
-    final isProvider = currentProviderId != null && senderId != 'system';
-    final senderType = senderId == 'system' ? 'user' : (isProvider ? 'provider' : 'user');
+    print('🔵 [ChatService] メッセージ送信: roomId=$chatRoomId, senderType=$senderType');
 
     // APIでメッセージを送信
     final result = await MySQLService.instance.sendMessageToChatRoom(
