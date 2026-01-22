@@ -313,7 +313,8 @@ const pool = mysql.createPool({
   database: 'celesmile',
   waitForConnections: true,
   connectionLimit: 10,
-  queueLimit: 0
+  queueLimit: 0,
+  dateStrings: true,  // 日付をDateオブジェクトではなく文字列(YYYY-MM-DD)で返す（タイムゾーン問題回避）
 });
 
 // Get bookings by provider
@@ -811,8 +812,7 @@ app.get('/api/chat-rooms/provider/:providerId', authenticateToken, async (req, r
         p.name as provider_name,
         b.service_name,
         (SELECT message FROM chats WHERE chat_room_id = cr.id ORDER BY created_at DESC LIMIT 1) as last_message,
-        (SELECT created_at FROM chats WHERE chat_room_id = cr.id ORDER BY created_at DESC LIMIT 1) as last_message_time,
-        (SELECT COUNT(*) FROM chats WHERE chat_room_id = cr.id AND sender_type = 'user') as unread_count
+        (SELECT created_at FROM chats WHERE chat_room_id = cr.id ORDER BY created_at DESC LIMIT 1) as last_message_time
       FROM chat_rooms cr
       LEFT JOIN providers p ON cr.provider_id = p.id
       LEFT JOIN bookings b ON cr.booking_id = b.id
@@ -841,8 +841,7 @@ app.get('/api/chat-rooms/user/:userId', async (req, res) => {
         p.name as provider_name,
         b.service_name,
         (SELECT message FROM chats WHERE chat_room_id = cr.id ORDER BY created_at DESC LIMIT 1) as last_message,
-        (SELECT created_at FROM chats WHERE chat_room_id = cr.id ORDER BY created_at DESC LIMIT 1) as last_message_time,
-        (SELECT COUNT(*) FROM chats WHERE chat_room_id = cr.id AND sender_type = 'provider') as unread_count
+        (SELECT created_at FROM chats WHERE chat_room_id = cr.id ORDER BY created_at DESC LIMIT 1) as last_message_time
       FROM chat_rooms cr
       LEFT JOIN providers p ON cr.provider_id = p.id
       LEFT JOIN bookings b ON cr.booking_id = b.id
@@ -1852,6 +1851,7 @@ app.post('/api/stripe/confirm-payment-intent', async (req, res) => {
     res.json({
       success: paymentIntent.status === 'succeeded',
       status: paymentIntent.status,
+      stripeAccountId: stripeAccountId,
     });
   } catch (error) {
     console.error('❌ Error confirming payment:', error.message);

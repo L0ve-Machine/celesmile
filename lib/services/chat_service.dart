@@ -56,7 +56,6 @@ class ChatRoom {
   final String bookingId; // 予約ID
   final DateTime createdAt;
   final ChatMessage? lastMessage;
-  final int unreadCount; // 未読メッセージ数
 
   ChatRoom({
     required this.id,
@@ -67,7 +66,6 @@ class ChatRoom {
     required this.bookingId,
     required this.createdAt,
     this.lastMessage,
-    this.unreadCount = 0,
   });
 
   Map<String, dynamic> toJson() => {
@@ -79,7 +77,6 @@ class ChatRoom {
         'bookingId': bookingId,
         'createdAt': createdAt.toIso8601String(),
         'lastMessage': lastMessage?.toJson(),
-        'unreadCount': unreadCount,
       };
 
   factory ChatRoom.fromJson(Map<String, dynamic> json) {
@@ -112,32 +109,6 @@ class ChatRoom {
               ? DateTime.parse(json['created_at'])
               : DateTime.now()),
       lastMessage: lastMsg,
-      unreadCount: json['unreadCount'] ?? json['unread_count'] ?? 0,
-    );
-  }
-
-  // 未読カウントを更新したコピーを返す
-  ChatRoom copyWith({
-    String? id,
-    String? userId,
-    String? providerId,
-    String? providerName,
-    String? serviceName,
-    String? bookingId,
-    DateTime? createdAt,
-    ChatMessage? lastMessage,
-    int? unreadCount,
-  }) {
-    return ChatRoom(
-      id: id ?? this.id,
-      userId: userId ?? this.userId,
-      providerId: providerId ?? this.providerId,
-      providerName: providerName ?? this.providerName,
-      serviceName: serviceName ?? this.serviceName,
-      bookingId: bookingId ?? this.bookingId,
-      createdAt: createdAt ?? this.createdAt,
-      lastMessage: lastMessage ?? this.lastMessage,
-      unreadCount: unreadCount ?? this.unreadCount,
     );
   }
 }
@@ -298,18 +269,6 @@ class ChatService {
 
     // 最新が最初になるように逆順で返す
     return messages.reversed.toList();
-  }
-
-  /// メッセージを既読にする
-  Future<void> markMessagesAsRead(String chatRoomId, String userId) async {
-    // TODO: API側に既読機能を追加
-    print('🔵 [ChatService] メッセージ既読処理: roomId=$chatRoomId');
-  }
-
-  /// 全体の未読メッセージ数を取得
-  Future<int> getTotalUnreadCount(String userId) async {
-    final rooms = await getChatRooms(userId);
-    return rooms.fold<int>(0, (sum, room) => sum + room.unreadCount);
   }
 
   /// チャットルームを削除（現在は未実装）

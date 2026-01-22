@@ -50,7 +50,6 @@ class _DebugChatScreenState extends State<DebugChatScreen> {
               buffer.writeln('       - serviceName: ${room['serviceName']}');
               buffer.writeln('       - bookingId: ${room['bookingId']}');
               buffer.writeln('       - createdAt: ${room['createdAt']}');
-              buffer.writeln('       - unreadCount: ${room['unreadCount']}');
             }
           }
         } catch (e) {

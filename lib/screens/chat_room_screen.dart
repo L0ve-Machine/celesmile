@@ -102,12 +102,6 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
               _isLoading = false;
             }
           });
-
-          // メッセージを既読にする
-          final currentUser = AuthService.currentUser;
-          if (currentUser != null) {
-            await _chatService.markMessagesAsRead(_chatRoomId!, currentUser);
-          }
         }
       }
     } catch (e) {
@@ -353,12 +347,17 @@ class _ChatRoomScreenState extends State<ChatRoomScreen> {
   Widget _buildMessageBubble(ChatMessage message) {
     // プロバイダーかユーザーかで自分のメッセージかを判定
     final currentProviderId = AuthService.currentUserProviderId;
+    final currentUser = AuthService.currentUser;
     final isProvider = currentProviderId != null;
     // sender_typeで判定（APIからはsender_typeが返る）
     final isMyMessage = isProvider
         ? message.senderType == 'provider'
         : message.senderType == 'user';
     final isSystemMessage = message.senderId == 'system' || message.senderType == 'system';
+
+    // デバッグログ
+    print('🔵 [ChatBubble] currentUser: $currentUser, currentProviderId: $currentProviderId');
+    print('🔵 [ChatBubble] isProvider: $isProvider, senderType: ${message.senderType}, isMyMessage: $isMyMessage');
 
     if (isSystemMessage) {
       return Padding(

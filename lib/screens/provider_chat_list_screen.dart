@@ -185,8 +185,6 @@ class _ProviderChatListScreenState extends State<ProviderChatListScreen> {
     final userId = chatRoom.userId;
     final lastMessageText = chatRoom.lastMessage?.message ?? 'メッセージがありません';
     final lastMessageTime = chatRoom.lastMessage?.timestamp ?? chatRoom.createdAt;
-    final unreadCount = chatRoom.unreadCount;
-    final hasUnread = unreadCount > 0;
 
     return InkWell(
       onTap: () async {
@@ -206,37 +204,15 @@ class _ProviderChatListScreenState extends State<ProviderChatListScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // ユーザーアイコン
-            Stack(
-              children: [
-                CircleAvatar(
-                  radius: 28,
-                  backgroundColor: AppColors.primaryOrange.withOpacity(0.2),
-                  child: const Icon(
-                    Icons.person,
-                    color: AppColors.primaryOrange,
-                    size: 28,
-                  ),
-                ),
-                if (hasUnread)
-                  Positioned(
-                    right: 0,
-                    top: 0,
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: const BoxDecoration(
-                        color: Colors.red,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Text(
-                        unreadCount > 9 ? '9+' : unreadCount.toString(),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
+            CircleAvatar(
+              radius: 28,
+              backgroundColor: AppColors.primaryOrange.withOpacity(0.2),
+              child: const Icon(
+                Icons.person,
+                color: AppColors.primaryOrange,
+                size: 28,
+              ),
+            ),
               ],
             ),
             const SizedBox(width: 12),
@@ -253,9 +229,9 @@ class _ProviderChatListScreenState extends State<ProviderChatListScreen> {
                       Expanded(
                         child: Text(
                           userId.isNotEmpty ? userId : '不明なユーザー',
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 16,
-                            fontWeight: hasUnread ? FontWeight.bold : FontWeight.w600,
+                            fontWeight: FontWeight.w600,
                             color: AppColors.textPrimary,
                           ),
                           maxLines: 1,
@@ -267,10 +243,7 @@ class _ProviderChatListScreenState extends State<ProviderChatListScreen> {
                         _formatTimestamp(lastMessageTime),
                         style: TextStyle(
                           fontSize: 12,
-                          color: hasUnread
-                              ? AppColors.primaryOrange
-                              : Colors.grey[600],
-                          fontWeight: hasUnread ? FontWeight.w600 : FontWeight.normal,
+                          color: Colors.grey[600],
                         ),
                       ),
                     ],
@@ -282,10 +255,7 @@ class _ProviderChatListScreenState extends State<ProviderChatListScreen> {
                     lastMessageText,
                     style: TextStyle(
                       fontSize: 14,
-                      color: hasUnread
-                          ? AppColors.textPrimary
-                          : Colors.grey[700],
-                      fontWeight: hasUnread ? FontWeight.w500 : FontWeight.normal,
+                      color: Colors.grey[700],
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
