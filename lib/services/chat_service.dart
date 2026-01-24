@@ -170,6 +170,7 @@ class ChatService {
       senderId: 'system',
       senderName: 'システム',
       message: '予約が確定しました。$providerNameさんとチャットを開始できます。',
+      senderType: 'system',
     );
 
     print('🟢 [ChatService] チャットルーム作成完了');
