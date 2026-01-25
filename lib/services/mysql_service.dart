@@ -65,13 +65,26 @@ class MySQLService {
 
   // Revenue methods
   Future<Map<String, dynamic>> getRevenueSummary(String providerId) async {
+    print('📊 [getRevenueSummary] Fetching for providerId: $providerId');
+    final headers = _getHeaders(includeAuth: true);
+    print('📊 [getRevenueSummary] Auth token present: ${headers['Authorization'] != null}');
+
     final response = await http.get(
       Uri.parse('$baseUrl/revenue-summary/$providerId'),
-      headers: _getHeaders(includeAuth: true),
+      headers: headers,
     );
-    if (response.statusCode == 200) {
-      return Map<String, dynamic>.from(json.decode(response.body));
+
+    print('📊 [getRevenueSummary] Response status: ${response.statusCode}');
+    if (response.statusCode != 200) {
+      print('❌ [getRevenueSummary] Error response: ${response.body}');
     }
+
+    if (response.statusCode == 200) {
+      final data = Map<String, dynamic>.from(json.decode(response.body));
+      print('✅ [getRevenueSummary] Success: $data');
+      return data;
+    }
+    print('⚠️ [getRevenueSummary] Returning default zeros due to error');
     return {'thisMonthTotal': 0, 'pendingTotal': 0, 'paidTotal': 0, 'totalRevenue': 0};
   }
 

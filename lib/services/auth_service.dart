@@ -91,9 +91,9 @@ class AuthService {
   };
 
   // Provider ID mapping (only for provider users)
-  static final Map<String, String> _userProviderIds = {
-    'test': 'test_provider_001',
-  };
+  // NOTE: This map is populated dynamically during login from API response
+  // Do NOT hardcode provider IDs here - they must come from the database
+  static final Map<String, String> _userProviderIds = {};
 
   // Track whether user is a verified provider (not just has provider_id)
   static bool _isVerifiedProvider = false;

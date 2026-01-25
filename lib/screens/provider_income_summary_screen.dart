@@ -30,6 +30,8 @@ class _ProviderIncomeSummaryScreenState extends State<ProviderIncomeSummaryScree
   Future<void> _loadData() async {
     if (_providerId == null) return;
 
+    print('💰 [IncomeSummary] Loading data for providerId: $_providerId');
+
     setState(() {
       _isLoading = true;
     });
@@ -38,12 +40,16 @@ class _ProviderIncomeSummaryScreenState extends State<ProviderIncomeSummaryScree
       final summary = await MySQLService.instance.getRevenueSummary(_providerId!);
       final bookings = await MySQLService.instance.getBookingsByProvider(_providerId!);
 
+      print('💰 [IncomeSummary] Summary received: $summary');
+      print('💰 [IncomeSummary] Bookings count: ${bookings.length}');
+
       setState(() {
         _summary = summary;
         _bookings = bookings;
         _isLoading = false;
       });
     } catch (e) {
+      print('❌ [IncomeSummary] Error loading data: $e');
       setState(() {
         _isLoading = false;
       });
