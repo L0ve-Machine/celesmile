@@ -1005,20 +1005,51 @@ class _BookingConfirmationScreenState
               ),
               const SizedBox(height: 24),
 
+              // Date/time selection warning
+              if (_selectedDate == null || _selectedTimeSlot == null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.orange[50],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.orange[200]!),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.warning_amber_rounded, color: Colors.orange[700], size: 20),
+                        const SizedBox(width: 8),
+                        const Expanded(
+                          child: Text(
+                            '日時を選択してください',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.black87,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              if (_selectedDate == null || _selectedTimeSlot == null)
+                const SizedBox(height: 12),
+
               // Confirm button
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: _acceptCancellationPolicy
+                    onPressed: (_acceptCancellationPolicy && _selectedDate != null && _selectedTimeSlot != null)
                         ? () {
                             // Handle booking confirmation
                             _showConfirmationDialog();
                           }
                         : null,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: _acceptCancellationPolicy
+                      backgroundColor: (_acceptCancellationPolicy && _selectedDate != null && _selectedTimeSlot != null)
                           ? AppColors.primaryOrange
                           : Colors.grey[400],
                       padding: const EdgeInsets.symmetric(vertical: 16),

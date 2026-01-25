@@ -767,27 +767,38 @@ app.post('/api/chats', async (req, res) => {
 
 // Create chat room
 app.post('/api/chat-rooms', async (req, res) => {
+  console.log('🔵 [Chat Room] POST /api/chat-rooms received');
+  console.log('   - Request body:', JSON.stringify(req.body, null, 2));
   try {
     const { id, provider_id, user_id, booking_id } = req.body;
+    console.log('   - id:', id);
+    console.log('   - provider_id:', provider_id);
+    console.log('   - user_id:', user_id);
+    console.log('   - booking_id:', booking_id);
 
     // Check if room already exists for this provider-user pair
     const [existing] = await pool.query(
       'SELECT * FROM chat_rooms WHERE provider_id = ? AND user_id = ?',
       [provider_id, user_id]
     );
+    console.log('   - Existing rooms found:', existing.length);
 
     if (existing.length > 0) {
       // Return existing room
+      console.log('   - Returning existing room:', existing[0].id);
       return res.json({ success: true, id: existing[0].id, existing: true });
     }
 
     // Create new room
+    console.log('   - Creating new chat room...');
     await pool.query(
       'INSERT INTO chat_rooms (id, provider_id, user_id, booking_id) VALUES (?, ?, ?, ?)',
       [id, provider_id, user_id, booking_id]
     );
+    console.log('   ✅ Chat room created:', id);
     res.json({ success: true, id, existing: false });
   } catch (error) {
+    console.error('   ❌ Error creating chat room:', error.message);
     res.status(500).json({ error: error.message });
   }
 });
@@ -949,6 +960,8 @@ app.post('/api/chat-rooms/:roomId/messages', async (req, res) => {
 
 // Create new booking
 app.post('/api/bookings', async (req, res) => {
+  console.log('🔵 [Booking] POST /api/bookings received');
+  console.log('   - Request body:', JSON.stringify(req.body, null, 2));
   try {
     const {
       id, provider_id, salon_id, service_id, customer_name,
@@ -983,9 +996,10 @@ app.post('/api/bookings', async (req, res) => {
       ]
     );
 
+    console.log('   ✅ Booking created:', id);
     res.json({ success: true, id });
   } catch (error) {
-    console.error('Error creating booking:', error);
+    console.error('   ❌ Error creating booking:', error);
     res.status(500).json({ error: error.message });
   }
 });
