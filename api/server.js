@@ -9,6 +9,7 @@ const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
 const rateLimit = require('express-rate-limit');
 const slowDown = require('express-slow-down');
+const cron = require('node-cron');
 require('dotenv').config();
 
 // Initialize Stripe
@@ -1055,8 +1056,12 @@ app.post('/api/bookings/:bookingId/cancel', async (req, res) => {
     // 2. 180分ルールをチェック
     // 予約日時を作成（booking_date + time_slot）
     const bookingDate = new Date(booking.booking_date);
-    const [hours, minutes] = booking.time_slot.split(':').map(Number);
-    bookingDate.setHours(hours, minutes, 0, 0);
+    if (booking.time_slot && booking.time_slot.includes(':')) {
+      const [hours, minutes] = booking.time_slot.split(':').map(Number);
+      if (!isNaN(hours) && !isNaN(minutes)) {
+        bookingDate.setHours(hours, minutes, 0, 0);
+      }
+    }
 
     const now = new Date();
     const diffMinutes = (bookingDate - now) / (1000 * 60);
@@ -2378,3 +2383,73 @@ const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`API server running on port ${PORT}`);
 });
+
+// ============================================
+// Cron Job: 振込手数料の自動控除（毎月24日 午前0時）
+// ============================================
+cron.schedule('0 0 24 * *', async () => {
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('🕐 [CRON] 振込手数料控除バッチ開始');
+  console.log(`📅 Date: ${new Date().toISOString()}`);
+
+  try {
+    // Stripe Account IDを持つ全プロバイダーを取得
+    const [providers] = await pool.query(
+      'SELECT id, email, stripe_account_id FROM providers WHERE stripe_account_id IS NOT NULL'
+    );
+
+    console.log(`📊 Found ${providers.length} providers with Stripe accounts`);
+
+    let successCount = 0;
+    let skippedCount = 0;
+    let failedCount = 0;
+
+    for (const provider of providers) {
+      const accountId = provider.stripe_account_id;
+
+      try {
+        // 残高確認
+        const balance = await stripe.balance.retrieve({
+          stripeAccount: accountId,
+        });
+        const availableBalance = balance.available.find(b => b.currency === 'jpy')?.amount || 0;
+
+        // 残高不足の場合はスキップ
+        if (availableBalance < TRANSFER_FEE) {
+          console.log(`⚠️  [${provider.id}] Skipped: Balance ${availableBalance} < ${TRANSFER_FEE}`);
+          skippedCount++;
+          continue;
+        }
+
+        // Account Debitで控除
+        const charge = await stripe.charges.create({
+          amount: TRANSFER_FEE,
+          currency: 'jpy',
+          source: accountId,
+          description: `振込手数料 (${new Date().toISOString().slice(0, 7)})`,
+        });
+
+        console.log(`✅ [${provider.id}] Deducted ${TRANSFER_FEE} JPY (${charge.id})`);
+        successCount++;
+
+      } catch (providerError) {
+        console.error(`❌ [${provider.id}] Error: ${providerError.message}`);
+        failedCount++;
+      }
+    }
+
+    console.log('📊 [CRON] 結果サマリー:');
+    console.log(`   - 成功: ${successCount}`);
+    console.log(`   - スキップ: ${skippedCount}`);
+    console.log(`   - 失敗: ${failedCount}`);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+
+  } catch (error) {
+    console.error('❌ [CRON] バッチ処理エラー:', error.message);
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  }
+}, {
+  timezone: 'Asia/Tokyo'
+});
+
+console.log('📅 [CRON] 振込手数料控除バッチを登録しました（毎月24日 0:00 JST）');
