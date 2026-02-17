@@ -308,10 +308,10 @@ const salonUpload = multer({
 });
 
 const pool = mysql.createPool({
-  host: '127.0.0.1',
-  user: 'celesmile',
-  password: 'celesmile123',
-  database: 'celesmile',
+  host: process.env.DB_HOST || '127.0.0.1',
+  user: process.env.DB_USER || 'celesmile',
+  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME || 'celesmile',
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,

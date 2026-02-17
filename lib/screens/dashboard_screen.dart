@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:app_settings/app_settings.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../constants/colors.dart';
 import '../services/database_service.dart';
 import '../services/notification_service.dart';
@@ -267,30 +268,70 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  // ============================================
+  // 広告バナー設定（ここを編集して広告を変更）
+  // ============================================
+  static const String _bannerImageUrl = 'https://anagrams.jp/wp-content/uploads/how-to-make-a-banner-with-canva_header.png';
+  static const String _bannerLinkUrl = ''; // タップ時に開くURL（空の場合はタップ無効）
+  // ============================================
+
   Widget _buildCampaignBanner() {
-    return Container(
-      color: Colors.white,
-      height: 150,
+    return GestureDetector(
+      onTap: _bannerLinkUrl.isNotEmpty
+          ? () async {
+              final uri = Uri.parse(_bannerLinkUrl);
+              if (await canLaunchUrl(uri)) {
+                await launchUrl(uri, mode: LaunchMode.externalApplication);
+              }
+            }
+          : null,
       child: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              AppColors.primaryOrange.withOpacity(0.8),
-              AppColors.secondaryOrange,
-            ],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-        ),
-        child: Center(
-          child: Text(
-            'キャンペーン・広告エリア',
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.7),
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
+        color: Colors.white,
+        height: 150,
+        width: double.infinity,
+        child: Image.network(
+          _bannerImageUrl,
+          fit: BoxFit.cover,
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    AppColors.primaryOrange.withOpacity(0.3),
+                    AppColors.secondaryOrange.withOpacity(0.3),
+                  ],
+                ),
+              ),
+              child: const Center(
+                child: CircularProgressIndicator(
+                  color: AppColors.primaryOrange,
+                ),
+              ),
+            );
+          },
+          errorBuilder: (context, error, stackTrace) {
+            return Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    AppColors.primaryOrange.withOpacity(0.8),
+                    AppColors.secondaryOrange,
+                  ],
+                ),
+              ),
+              child: const Center(
+                child: Text(
+                  'キャンペーン・広告エリア',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            );
+          },
         ),
       ),
     );

@@ -323,7 +323,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
 
   Widget _buildTermsText() {
     return const Text(
-      '登録することでCelestcareの利用規約および\nプライバシーポリシーに同意するものとします',
+      '登録することでCelesmileの利用規約および\nプライバシーポリシーに同意するものとします',
       style: TextStyle(
         fontSize: 12,
         color: AppColors.textSecondary,
