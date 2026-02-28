@@ -49,6 +49,7 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 app.use(express.json());
+app.use('/uploads', express.static('/var/www/celesmile/uploads'));
 
 // ========================================
 // Rate Limiting & Security System
