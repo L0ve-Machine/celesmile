@@ -51,6 +51,11 @@ app.use(cors(corsOptions));
 app.use(express.json());
 app.use('/uploads', express.static('/var/www/celesmile/uploads'));
 
+// Privacy Policy page
+app.get('/privacy-policy', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'privacy-policy.html'));
+});
+
 // ========================================
 // Rate Limiting & Security System
 // ========================================

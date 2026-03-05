@@ -883,7 +883,8 @@ class _ProfileRegistrationScreenState extends State<ProfileRegistrationScreen> {
                 ),
                 GestureDetector(
                   onTap: () {
-                    // TODO: Open privacy policy page
+                    launchUrl(Uri.parse('https://celesmile-demo.duckdns.org/privacy-policy.html'),
+                        mode: LaunchMode.externalApplication);
                   },
                   child: const Text(
                     'プライバシーポリシー',

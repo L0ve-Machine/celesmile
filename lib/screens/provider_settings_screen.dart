@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../constants/colors.dart';
 import '../services/provider_database_service.dart';
 import '../services/auth_service.dart';
@@ -266,7 +267,8 @@ class _ProviderSettingsScreenState extends State<ProviderSettingsScreen> {
               icon: Icons.privacy_tip_outlined,
               title: 'プライバシーポリシー',
               onTap: () {
-                _showComingSoonDialog('プライバシーポリシー');
+                launchUrl(Uri.parse('https://celesmile-demo.duckdns.org/privacy-policy.html'),
+                    mode: LaunchMode.externalApplication);
               },
             ),
             _buildSettingItem(

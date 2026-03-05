@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../constants/colors.dart';
 import '../services/auth_service.dart';
 import '../widgets/orange_wave_painter.dart';
@@ -322,14 +323,32 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   }
 
   Widget _buildTermsText() {
-    return const Text(
-      '登録することでCelesmileの利用規約および\nプライバシーポリシーに同意するものとします',
-      style: TextStyle(
-        fontSize: 12,
-        color: AppColors.textSecondary,
-        height: 1.5,
+    return GestureDetector(
+      onTap: () {
+        launchUrl(Uri.parse('https://celesmile-demo.duckdns.org/privacy-policy.html'),
+            mode: LaunchMode.externalApplication);
+      },
+      child: const Text.rich(
+        TextSpan(
+          children: [
+            TextSpan(text: '登録することでCelesmileの利用規約および\n'),
+            TextSpan(
+              text: 'プライバシーポリシー',
+              style: TextStyle(
+                decoration: TextDecoration.underline,
+                color: AppColors.accentBlue,
+              ),
+            ),
+            TextSpan(text: 'に同意するものとします'),
+          ],
+        ),
+        style: TextStyle(
+          fontSize: 12,
+          color: AppColors.textSecondary,
+          height: 1.5,
+        ),
+        textAlign: TextAlign.center,
       ),
-      textAlign: TextAlign.center,
     );
   }
 
