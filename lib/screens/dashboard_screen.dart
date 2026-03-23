@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -25,6 +26,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String? _selectedTimeRange;
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
+
+  // Banner state
+  List<Map<String, dynamic>> _banners = [];
+  bool _isLoadingBanners = true;
+  int _currentBannerIndex = 0;
+  final PageController _bannerPageController = PageController();
+  Timer? _bannerAutoScrollTimer;
 
   final List<Map<String, String>> _timeRanges = [
     {'label': '午前（6:00-12:00）', 'value': 'morning'},
@@ -110,13 +118,52 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
+    _loadBanners();
     _checkAndShowNotificationDialog();
   }
 
   @override
   void dispose() {
+    _bannerAutoScrollTimer?.cancel();
+    _bannerPageController.dispose();
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadBanners() async {
+    try {
+      final banners = await MySQLService.instance.getBanners();
+      if (mounted) {
+        setState(() {
+          _banners = banners;
+          _isLoadingBanners = false;
+        });
+        _startBannerAutoScroll();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingBanners = false;
+        });
+      }
+    }
+  }
+
+  void _startBannerAutoScroll() {
+    if (_banners.length <= 1) return;
+    _bannerAutoScrollTimer?.cancel();
+    _bannerAutoScrollTimer = Timer.periodic(const Duration(seconds: 5), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      final nextIndex = (_currentBannerIndex + 1) % _banners.length;
+      _bannerPageController.animateToPage(
+        nextIndex,
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeInOut,
+      );
+    });
   }
 
   Future<void> _checkAndShowNotificationDialog() async {
@@ -273,18 +320,89 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // ============================================
-  // 広告バナー設定（ここを編集して広告を変更）
-  // ============================================
-  static const String _bannerImageUrl = 'https://anagrams.jp/wp-content/uploads/how-to-make-a-banner-with-canva_header.png';
-  static const String _bannerLinkUrl = ''; // タップ時に開くURL（空の場合はタップ無効）
-  // ============================================
-
   Widget _buildCampaignBanner() {
+    // ローディング中
+    if (_isLoadingBanners) {
+      return Container(
+        color: Colors.white,
+        height: 150,
+        width: double.infinity,
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                AppColors.primaryOrange.withOpacity(0.3),
+                AppColors.secondaryOrange.withOpacity(0.3),
+              ],
+            ),
+          ),
+          child: const Center(
+            child: CircularProgressIndicator(
+              color: AppColors.primaryOrange,
+            ),
+          ),
+        ),
+      );
+    }
+
+    // バナーが0件なら非表示
+    if (_banners.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    // バナー1件：シンプル表示
+    if (_banners.length == 1) {
+      return _buildSingleBanner(_banners[0]);
+    }
+
+    // バナー複数件：PageView + ドットインジケーター
+    return Column(
+      children: [
+        SizedBox(
+          height: 150,
+          child: PageView.builder(
+            controller: _bannerPageController,
+            itemCount: _banners.length,
+            onPageChanged: (index) {
+              setState(() {
+                _currentBannerIndex = index;
+              });
+            },
+            itemBuilder: (context, index) {
+              return _buildSingleBanner(_banners[index]);
+            },
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(_banners.length, (index) {
+            return Container(
+              width: 8,
+              height: 8,
+              margin: const EdgeInsets.symmetric(horizontal: 3),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _currentBannerIndex == index
+                    ? AppColors.primaryOrange
+                    : AppColors.lightGray,
+              ),
+            );
+          }),
+        ),
+        const SizedBox(height: 4),
+      ],
+    );
+  }
+
+  Widget _buildSingleBanner(Map<String, dynamic> banner) {
+    final imageUrl = banner['image_url'] as String? ?? '';
+    final linkUrl = banner['link_url'] as String? ?? '';
+
     return GestureDetector(
-      onTap: _bannerLinkUrl.isNotEmpty
+      onTap: linkUrl.isNotEmpty
           ? () async {
-              final uri = Uri.parse(_bannerLinkUrl);
+              final uri = Uri.parse(linkUrl);
               if (await canLaunchUrl(uri)) {
                 await launchUrl(uri, mode: LaunchMode.externalApplication);
               }
@@ -295,7 +413,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         height: 150,
         width: double.infinity,
         child: Image.network(
-          _bannerImageUrl,
+          imageUrl,
           fit: BoxFit.cover,
           loadingBuilder: (context, child, loadingProgress) {
             if (loadingProgress == null) return child;

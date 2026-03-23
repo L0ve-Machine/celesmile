@@ -31,6 +31,20 @@ class MySQLService {
     return headers;
   }
 
+  // Banner methods
+  Future<List<Map<String, dynamic>>> getBanners() async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/banners'));
+      if (response.statusCode == 200) {
+        return List<Map<String, dynamic>>.from(json.decode(response.body));
+      }
+      return [];
+    } catch (e) {
+      print('Error fetching banners: $e');
+      return [];
+    }
+  }
+
   // Salon methods
   Future<List<Map<String, dynamic>>> getSalonsByProvider(String providerId) async {
     final response = await http.get(

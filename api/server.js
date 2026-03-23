@@ -414,6 +414,24 @@ app.get('/api/salon/:salonId', async (req, res) => {
   }
 });
 
+// Get active banners
+app.get('/api/banners', async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT id, title, image_url, link_url, display_order
+       FROM banners
+       WHERE is_active = 1
+         AND (start_date IS NULL OR start_date <= NOW())
+         AND (end_date IS NULL OR end_date >= NOW())
+       ORDER BY display_order ASC`
+    );
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching banners:', error);
+    res.status(500).json({ error: 'Failed to fetch banners' });
+  }
+});
+
 // Get services with filters
 app.get('/api/services', async (req, res) => {
   try {
