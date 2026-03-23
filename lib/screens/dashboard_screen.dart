@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:app_settings/app_settings.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../constants/colors.dart';
+import '../services/auth_service.dart';
 import '../services/database_service.dart';
 import '../services/notification_service.dart';
 import '../services/profile_image_service.dart';
@@ -251,6 +252,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
           GestureDetector(
             onTap: () {
+              if (AuthService.currentUser == null) {
+                _showLoginRequiredDialog();
+                return;
+              }
               Navigator.pushNamed(context, '/user-settings');
             },
             child: CircleAvatar(
@@ -1372,6 +1377,36 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showLoginRequiredDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('ログインが必要です'),
+        content: const Text('この機能を利用するにはログインしてください。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('キャンセル'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.of(context).pushNamedAndRemoveUntil(
+                '/',
+                (Route<dynamic> route) => false,
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryOrange,
+            ),
+            child: const Text('ログイン', style: TextStyle(color: Colors.white)),
+          ),
+        ],
       ),
     );
   }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 import '../constants/colors.dart';
+import '../services/auth_service.dart';
 import '../services/database_service.dart';
 import '../services/reviews_database_service.dart';
 import '../services/mysql_service.dart';
@@ -900,6 +901,10 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
                     Expanded(
                       child: ElevatedButton(
                         onPressed: () {
+                          if (AuthService.currentUser == null) {
+                            _showLoginRequiredDialog();
+                            return;
+                          }
                           Navigator.pushNamed(
                             context,
                             '/booking-confirmation',
@@ -1132,6 +1137,36 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
               color: AppColors.textPrimary,
               height: 1.5,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showLoginRequiredDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('ログインが必要です'),
+        content: const Text('予約するにはログインしてください。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('キャンセル'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.of(context).pushNamedAndRemoveUntil(
+                '/',
+                (Route<dynamic> route) => false,
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryOrange,
+            ),
+            child: const Text('ログイン', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),

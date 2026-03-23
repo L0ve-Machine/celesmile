@@ -144,6 +144,26 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
               children: [
                 TextButton(
                   onPressed: () {
+                    Navigator.pushReplacementNamed(context, '/dashboard');
+                  },
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: Size(0, 0),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: const Text(
+                    'ログインせずにサービスを見る',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.accentBlue,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextButton(
+                  onPressed: () {
                     Navigator.pushNamed(context, '/onboarding');
                   },
                   style: TextButton.styleFrom(
