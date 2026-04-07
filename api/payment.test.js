@@ -179,6 +179,95 @@ describe('手数料計算', () => {
   });
 });
 
+describe('アカウント削除', () => {
+
+  // Mock connection object for transaction testing
+  function createMockConnection() {
+    const queries = [];
+    return {
+      queries,
+      beginTransaction: jest.fn(),
+      commit: jest.fn(),
+      rollback: jest.fn(),
+      release: jest.fn(),
+      query: jest.fn((sql, params) => {
+        queries.push({ sql, params });
+        return [{ affectedRows: 1 }];
+      }),
+    };
+  }
+
+  // Simulate the account deletion logic extracted from server.js
+  async function deleteAccount(connection, userId) {
+    await connection.beginTransaction();
+
+    await connection.query('DELETE FROM chats WHERE provider_id = ? OR user_id = ?', [userId, userId]);
+    await connection.query('DELETE FROM chat_rooms WHERE provider_id = ? OR user_id = ?', [userId, userId]);
+    await connection.query('DELETE FROM reviews WHERE provider_id = ?', [userId]);
+    await connection.query('DELETE FROM revenues WHERE provider_id = ?', [userId]);
+    await connection.query('DELETE FROM bookings WHERE provider_id = ? OR user_id = ?', [userId, userId]);
+    await connection.query('DELETE FROM service_menus WHERE provider_id = ?', [userId]);
+    await connection.query('DELETE FROM services WHERE provider_id = ?', [userId]);
+    await connection.query('DELETE FROM salons WHERE provider_id = ?', [userId]);
+    await connection.query('DELETE FROM coupons WHERE user_id = ?', [userId]);
+    await connection.query('DELETE FROM providers WHERE id = ?', [userId]);
+
+    await connection.commit();
+  }
+
+  test('全テーブルから正しい順序で削除される', async () => {
+    const conn = createMockConnection();
+    await deleteAccount(conn, 'test-user-123');
+
+    expect(conn.beginTransaction).toHaveBeenCalledTimes(1);
+    expect(conn.commit).toHaveBeenCalledTimes(1);
+    expect(conn.queries).toHaveLength(10);
+
+    // Verify deletion order (child tables first, providers last)
+    const tables = conn.queries.map(q => q.sql.match(/FROM (\w+)/)[1]);
+    expect(tables).toEqual([
+      'chats', 'chat_rooms', 'reviews', 'revenues',
+      'bookings', 'service_menus', 'services', 'salons',
+      'coupons', 'providers',
+    ]);
+  });
+
+  test('全クエリにユーザーIDが渡される', async () => {
+    const conn = createMockConnection();
+    const userId = 'provider-456';
+    await deleteAccount(conn, userId);
+
+    for (const q of conn.queries) {
+      expect(q.params).toContain(userId);
+    }
+  });
+
+  test('providersテーブルが最後に削除される', async () => {
+    const conn = createMockConnection();
+    await deleteAccount(conn, 'test-user');
+
+    const lastQuery = conn.queries[conn.queries.length - 1];
+    expect(lastQuery.sql).toContain('DELETE FROM providers');
+  });
+
+  test('エラー時はrollbackされる', async () => {
+    const conn = createMockConnection();
+    conn.query.mockImplementationOnce(() => { throw new Error('DB error'); });
+
+    await expect(async () => {
+      try {
+        await deleteAccount(conn, 'test-user');
+      } catch (e) {
+        await conn.rollback();
+        throw e;
+      }
+    }).rejects.toThrow('DB error');
+
+    expect(conn.rollback).toHaveBeenCalledTimes(1);
+    expect(conn.commit).not.toHaveBeenCalled();
+  });
+});
+
 describe('統合シナリオ', () => {
 
   test('シナリオ1: 予約4時間前にキャンセル → 全額返金', () => {

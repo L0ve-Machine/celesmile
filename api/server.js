@@ -587,6 +587,40 @@ app.delete('/api/salons/:salonId', authenticateToken, async (req, res) => {
   }
 });
 
+// ========================================
+// Account Deletion
+// ========================================
+app.delete('/api/account', authenticateToken, async (req, res) => {
+  const userId = req.user.id;
+  const connection = await pool.getConnection();
+
+  try {
+    await connection.beginTransaction();
+
+    // Delete related data in order (child tables first)
+    await connection.query('DELETE FROM chats WHERE provider_id = ? OR user_id = ?', [userId, userId]);
+    await connection.query('DELETE FROM chat_rooms WHERE provider_id = ? OR user_id = ?', [userId, userId]);
+    await connection.query('DELETE FROM reviews WHERE provider_id = ?', [userId]);
+    await connection.query('DELETE FROM revenues WHERE provider_id = ?', [userId]);
+    await connection.query('DELETE FROM bookings WHERE provider_id = ? OR user_id = ?', [userId, userId]);
+    await connection.query('DELETE FROM service_menus WHERE provider_id = ?', [userId]);
+    await connection.query('DELETE FROM services WHERE provider_id = ?', [userId]);
+    await connection.query('DELETE FROM salons WHERE provider_id = ?', [userId]);
+    await connection.query('DELETE FROM coupons WHERE user_id = ?', [userId]);
+    await connection.query('DELETE FROM providers WHERE id = ?', [userId]);
+
+    await connection.commit();
+    console.log(`✅ Account deleted: ${userId}`);
+    res.json({ success: true });
+  } catch (error) {
+    await connection.rollback();
+    console.error('Error deleting account:', error);
+    res.status(500).json({ error: 'Failed to delete account' });
+  } finally {
+    connection.release();
+  }
+});
+
 // Get availability calendar
 app.get('/api/availability/:providerId', authenticateToken, async (req, res) => {
   console.log('🔍 DEBUG [API availability]: Request for provider:', req.params.providerId);

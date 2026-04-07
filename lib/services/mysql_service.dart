@@ -148,6 +148,20 @@ class MySQLService {
     return response.statusCode == 200;
   }
 
+  // Delete account
+  Future<bool> deleteAccount() async {
+    try {
+      final response = await http.delete(
+        Uri.parse('$baseUrl/account'),
+        headers: _getHeaders(includeAuth: true),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      print('Error deleting account: $e');
+      return false;
+    }
+  }
+
   // Delete salon
   Future<bool> deleteSalon(String salonId) async {
     final response = await http.delete(

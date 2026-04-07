@@ -73,6 +73,67 @@ https://celesmile-demo.duckdns.org
     );
   }
 
+  void _showDeleteAccountDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('アカウントを削除'),
+        content: const Text(
+          'アカウントを削除すると、すべてのデータ（プロフィール、予約履歴、チャット履歴など）が完全に削除され、元に戻すことはできません。\n\n本当に削除しますか？',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('キャンセル'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _confirmDeleteAccount();
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('削除する'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirmDeleteAccount() async {
+    // Show loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    final success = await MySQLService.instance.deleteAccount();
+
+    if (!mounted) return;
+    Navigator.pop(context); // Close loading
+
+    if (success) {
+      AuthService.logout();
+      Navigator.of(context).pushNamedAndRemoveUntil(
+        '/',
+        (Route<dynamic> route) => false,
+      );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('アカウントが削除されました'),
+          backgroundColor: AppColors.primaryOrange,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('アカウントの削除に失敗しました。もう一度お試しください。'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -158,6 +219,12 @@ https://celesmile-demo.duckdns.org
                 (Route<dynamic> route) => false,
               );
             },
+          ),
+          _buildMenuItem(
+            context,
+            'アカウントを削除',
+            () => _showDeleteAccountDialog(),
+            icon: Icons.delete_outline,
           ),
         ],
       ),
