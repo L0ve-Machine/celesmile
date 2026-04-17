@@ -618,8 +618,7 @@ class _ProfileRegistrationScreenState extends State<ProfileRegistrationScreen> {
   }
 
   Widget _buildInviteCodeSection() {
-    // Invite code feature is temporarily disabled
-    const bool isInviteCodeEnabled = false;
+    const bool isInviteCodeEnabled = true;
 
     return Opacity(
       opacity: isInviteCodeEnabled ? 1.0 : 0.6,

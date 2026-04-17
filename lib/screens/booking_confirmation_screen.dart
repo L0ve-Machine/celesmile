@@ -100,9 +100,8 @@ class _BookingConfirmationScreenState
       // Points will be loaded from backend when available
       _availablePoints = 0;
 
-      // Initialize available coupons (mock data)
-      // Coupons will be loaded from backend when available
-      _availableCoupons = [];
+      // Load coupons from backend
+      _loadCoupons();
 
       // Load saved cards
       _loadSavedCards();
@@ -306,6 +305,37 @@ class _BookingConfirmationScreenState
       sum += review.rating;
     }
     return sum / _reviews.length;
+  }
+
+  Future<void> _loadCoupons() async {
+    final userId = AuthService.currentUserProviderId;
+    if (userId == null) return;
+
+    try {
+      final coupons = await MySQLService.instance.getCoupons(userId);
+      if (mounted) {
+        setState(() {
+          _availableCoupons = coupons.map((c) {
+            final amount = c['discount_amount'] as int? ?? 0;
+            final source = c['source'] as String? ?? '';
+            final label = source == 'invite_received'
+                ? '招待クーポン ¥$amount OFF'
+                : source == 'invite_given'
+                    ? '紹介クーポン ¥$amount OFF'
+                    : 'クーポン ¥$amount OFF';
+            return {
+              'id': c['id'].toString(),
+              'name': label,
+              'discount': amount,
+              'code': c['code'],
+              'expires_at': c['expires_at'],
+            };
+          }).toList();
+        });
+      }
+    } catch (e) {
+      print('Error loading coupons: $e');
+    }
   }
 
   Future<void> _loadSavedCards() async {
@@ -1398,6 +1428,18 @@ class _BookingConfirmationScreenState
         print('   ⚠️ プロバイダーIDまたはサロンIDがnull');
       }
 
+      // クーポンを使用済みにする
+      if (_selectedCoupon != null) {
+        final userId = AuthService.currentUserProviderId;
+        if (userId != null) {
+          final couponId = int.tryParse(_selectedCoupon!);
+          if (couponId != null) {
+            await MySQLService.instance.useCoupon(couponId, userId);
+            print('   - クーポン使用済みに更新: $_selectedCoupon');
+          }
+        }
+      }
+
       // チャットルームを作成
       ChatRoom? chatRoom;
       print('   - チャットルーム作成チェック: bookingId=$bookingId, providerId=${_service!.providerId}');
@@ -2070,9 +2112,11 @@ class _BookingConfirmationScreenState
               }
 
               final coupon = _availableCoupons[index - 1];
+              final expiresAt = coupon['expires_at'] as String?;
+              final expiresLabel = expiresAt != null ? '有効期限: ${expiresAt.substring(0, 10)}' : '';
               return RadioListTile<String>(
                 title: Text(coupon['name']),
-                subtitle: Text(coupon['id']),
+                subtitle: Text(expiresLabel),
                 value: coupon['id'],
                 groupValue: _selectedCoupon,
                 onChanged: (value) {
