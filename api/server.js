@@ -1538,11 +1538,9 @@ app.post('/api/providers/:providerId/profile', authenticateToken, async (req, re
       prefecture,
       city,
       address,
-      building,
-      inviteCode
+      building
     } = req.body;
 
-    // Update provider profile
     await pool.query(
       `UPDATE providers SET
         name = ?,
@@ -1554,8 +1552,7 @@ app.post('/api/providers/:providerId/profile', authenticateToken, async (req, re
         prefecture = ?,
         city = ?,
         address = ?,
-        building = ?,
-        invite_code = ?
+        building = ?
        WHERE id = ?`,
       [
         name,
@@ -1568,7 +1565,6 @@ app.post('/api/providers/:providerId/profile', authenticateToken, async (req, re
         city,
         address,
         building,
-        inviteCode,
         providerId
       ]
     );
