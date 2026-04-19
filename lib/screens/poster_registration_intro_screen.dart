@@ -21,12 +21,36 @@ class _PosterRegistrationIntroScreenState extends State<PosterRegistrationIntroS
     });
 
     try {
-      // 仮のprovider IDを生成（実際には認証済みユーザーのIDを使用）
       final providerId = 'provider_${DateTime.now().millisecondsSinceEpoch}';
 
-      // DID-IT の固定 verification URL（vendor_dataをURLパラメータで渡す）
-      final verificationUrl = 'https://verify.didit.me/session/5es7YyGWJb9O?vendor_data=$providerId';
-      const sessionId = '5es7YyGWJb9O';
+      final sessionResult = await DiditService.createProviderVerificationSession(providerId);
+
+      if (sessionResult['success'] != true) {
+        setState(() {
+          _isLoading = false;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(sessionResult['error'] ?? 'セッションの作成に失敗しました')),
+          );
+        }
+        return;
+      }
+
+      final sessionId = sessionResult['session_id'] as String?;
+      final verificationUrl = sessionResult['verification_url'] as String?;
+
+      if (sessionId == null || verificationUrl == null) {
+        setState(() {
+          _isLoading = false;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('セッション情報が不正です')),
+          );
+        }
+        return;
+      }
 
       print('✅ Verification session info');
       print('Session ID: $sessionId');

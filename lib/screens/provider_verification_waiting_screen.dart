@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import '../services/didit_service.dart';
 import '../services/provider_database_service.dart';
 import '../services/auth_service.dart';
 

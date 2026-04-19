@@ -217,8 +217,8 @@ class DiditService {
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = jsonDecode(response.body);
-        _providerSessionId = data['id'];
-        _providerVerificationUrl = data['verification_url'];
+        _providerSessionId = data['session_id'] ?? data['id'];
+        _providerVerificationUrl = data['url'] ?? data['verification_url'];
 
         print('✅ Provider認証セッション作成成功！');
         print('Session ID: $_providerSessionId');

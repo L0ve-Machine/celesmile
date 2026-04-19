@@ -30,17 +30,14 @@ function verifyWebhookSignature(req, body) {
     return false;
   }
 
-  // 署名検証
-  const message = `${timestamp}.${body}`;
+  // 署名検証: DIDIT は body のみ（timestamp は連結しない）を HMAC-SHA256 署名する
   const hmac = crypto.createHmac('sha256', DIDIT_WEBHOOK_SECRET);
-  hmac.update(message);
+  hmac.update(body);
   const expectedSignature = hmac.digest('hex');
 
-  // タイミングセーフな比較
-  if (!crypto.timingSafeEqual(
-    Buffer.from(signature),
-    Buffer.from(expectedSignature)
-  )) {
+  const sigBuf = Buffer.from(signature, 'hex');
+  const expBuf = Buffer.from(expectedSignature, 'hex');
+  if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
     console.error('❌ Webhook: Invalid signature');
     return false;
   }
@@ -76,16 +73,14 @@ const server = http.createServer((req, res) => {
         'x-timestamp': req.headers['x-timestamp']
       });
 
-      // 署名検証（開発環境：スキップ）
-      // TODO: 本番環境ではverifyWebhookSignatureを有効化
-      // if (!verifyWebhookSignature(req, body)) {
-      //   console.error('❌ Webhook signature verification failed');
-      //   res.writeHead(401);
-      //   res.end(JSON.stringify({ error: 'Invalid signature' }));
-      //   return;
-      // }
+      if (!verifyWebhookSignature(req, body)) {
+        console.error('❌ Webhook signature verification failed');
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid signature' }));
+        return;
+      }
 
-      console.log('✅ Webhook received (signature verification skipped)');
+      console.log('✅ Webhook signature verified');
 
       try {
         const data = JSON.parse(body);

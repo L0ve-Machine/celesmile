@@ -75,6 +75,11 @@ const RATE_LIMIT_CONFIG = {
   ATTEMPT_WINDOW: 15 * 60 * 1000   // 15 minute window
 };
 
+// Whitelisted IPs (bypass device blocking)
+const WHITELISTED_IPS = [
+  '37.60.82.7'
+];
+
 // Helper function to get client identifier (IP + User-Agent)
 const getClientId = (req) => {
   const ip = req.ip || req.connection.remoteAddress;
@@ -159,6 +164,12 @@ const recordLoginAttempt = (clientId, email, success) => {
 // Middleware to check device blocking
 const checkDeviceBlock = (req, res, next) => {
   const clientId = getClientId(req);
+  const ip = req.ip || req.connection.remoteAddress;
+
+  // Skip blocking for whitelisted IPs
+  if (WHITELISTED_IPS.includes(ip)) {
+    return next();
+  }
 
   if (isDeviceBlocked(clientId)) {
     const blockInfo = blockedDevices.get(clientId);
@@ -2144,33 +2155,6 @@ app.post('/api/upload/salon-images', salonUpload.array('images', 5), (req, res) 
   } catch (error) {
     console.error('Error uploading salon images:', error);
     res.status(500).json({ error: error.message });
-  }
-});
-
-// DID-IT Webhook endpoint for provider verification
-app.post('/api/didit/webhook', async (req, res) => {
-  console.log('🔔 DID-IT Webhook received');
-  console.log('Headers:', JSON.stringify(req.headers, null, 2));
-  console.log('Body:', JSON.stringify(req.body, null, 2));
-
-  // Return 200 immediately
-  res.status(200).json({ success: true, message: 'Webhook received' });
-
-  // Process the webhook data
-  try {
-    const { session_id, status, decision, vendor_data } = req.body;
-
-    console.log('📊 Webhook Data:');
-    console.log('  Session ID:', session_id);
-    console.log('  Status:', status);
-    console.log('  Decision:', decision);
-    console.log('  Vendor Data:', vendor_data);
-
-    // Store verification result in database if needed
-    // TODO: Update provider verification status in database
-
-  } catch (error) {
-    console.error('❌ Error processing webhook:', error);
   }
 });
 
