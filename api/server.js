@@ -15,6 +15,71 @@ require('dotenv').config();
 // Initialize Stripe
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
+// ========================================
+// DIDIT SMS helpers (for password reset)
+// ========================================
+const DIDIT_BASE_URL = 'https://verification.didit.me/v2';
+
+const diditFetch = async (path, body) => {
+  const res = await fetch(`${DIDIT_BASE_URL}${path}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': process.env.DIDIT_API_KEY
+    },
+    body: JSON.stringify(body)
+  });
+  const text = await res.text();
+  let data;
+  try { data = JSON.parse(text); } catch { data = { raw: text }; }
+  return { status: res.status, data };
+};
+
+const diditSendPhoneCode = async (phoneNumber) => {
+  return diditFetch('/phone/send/', {
+    phone_number: phoneNumber,
+    options: { code_size: 6, locale: 'ja-JP', preferred_channel: 'sms' }
+  });
+};
+
+const diditCheckPhoneCode = async (phoneNumber, code) => {
+  return diditFetch('/phone/check/', {
+    phone_number: phoneNumber,
+    code,
+    disposable_number_action: 'DECLINE',
+    voip_number_action: 'DECLINE'
+  });
+};
+
+// Rate limit tracking for password reset (in-memory)
+const RESET_WINDOW = 60 * 60 * 1000; // 1 hour
+const resetSendByPhone = new Map();   // phone -> { count, resetAt }
+const resetSendByEmail = new Map();   // email -> { count, resetAt }
+const resetVerifyByPair = new Map();  // `${phone}|${email}` -> { count, resetAt }
+
+const bumpCounter = (map, key, max) => {
+  const now = Date.now();
+  const entry = map.get(key);
+  if (!entry || now > entry.resetAt) {
+    map.set(key, { count: 1, resetAt: now + RESET_WINDOW });
+    return true;
+  }
+  if (entry.count >= max) return false;
+  entry.count += 1;
+  return true;
+};
+
+// Normalize phone to +81 format (matching client logic in didit_service.dart)
+const normalizeJPPhone = (raw) => {
+  if (!raw) return null;
+  const trimmed = String(raw).trim();
+  if (trimmed.startsWith('+')) return trimmed;
+  const digits = trimmed.replace(/\D/g, '');
+  if (!digits) return null;
+  const withoutLead = digits.startsWith('0') ? digits.substring(1) : digits;
+  return `+81${withoutLead}`;
+};
+
 const app = express();
 
 // Trust proxy (needed for nginx reverse proxy)
@@ -232,10 +297,34 @@ const authenticateToken = (req, res, next) => {
     return res.status(401).json({ error: 'Access token required' });
   }
 
-  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+  jwt.verify(token, process.env.JWT_SECRET, async (err, user) => {
     if (err) {
       return res.status(403).json({ error: 'Invalid or expired token' });
     }
+
+    // Check password_changed_at for token revocation
+    // If the user changed their password after this token was issued, reject it
+    try {
+      if (user.id && user.role === 'provider') {
+        const [rows] = await pool.query(
+          'SELECT password_changed_at FROM providers WHERE id = ?',
+          [user.id]
+        );
+        if (rows.length > 0 && rows[0].password_changed_at) {
+          const changedAt = new Date(rows[0].password_changed_at).getTime();
+          const issuedAt = (user.iat || 0) * 1000;
+          if (issuedAt < changedAt) {
+            return res.status(401).json({
+              error: 'Token revoked due to password change',
+              type: 'TOKEN_REVOKED'
+            });
+          }
+        }
+      }
+    } catch (dbErr) {
+      console.error('Token revocation check failed:', dbErr);
+    }
+
     req.user = user;
     next();
   });
@@ -1635,6 +1724,149 @@ app.patch('/api/providers/:providerId/verify', async (req, res) => {
   }
 });
 
+// ========================================
+// Password Reset (Forgot Password) via DIDIT SMS OTP
+// ========================================
+
+// Request password reset code — sends DIDIT SMS if phone+email pair matches.
+// Always returns 200 to prevent account enumeration.
+app.post('/api/password/reset-request', [
+  authLimiter,
+  authSpeedLimiter,
+  body('email').trim().isEmail().normalizeEmail(),
+  body('phone').trim().notEmpty()
+], async (req, res) => {
+  const genericOk = () => res.json({
+    success: true,
+    message: 'ご登録の電話番号にSMSを送信しました（該当アカウントがある場合）'
+  });
+
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return genericOk();
+
+    const { email, phone: rawPhone } = req.body;
+    const phone = normalizeJPPhone(rawPhone);
+    if (!phone) return genericOk();
+
+    // Per-phone rate limit (protects DIDIT credits from SMS flooding)
+    if (!bumpCounter(resetSendByPhone, phone, 3)) {
+      console.warn(`⚠️ Reset SMS rate limit hit for phone ${phone}`);
+      return genericOk();
+    }
+
+    // Per-email rate limit (prevents email-targeted enumeration)
+    if (!bumpCounter(resetSendByEmail, email, 5)) {
+      console.warn(`⚠️ Reset SMS rate limit hit for email ${email}`);
+      return genericOk();
+    }
+
+    // Match on BOTH phone and email (phone alone is not unique in this DB)
+    const [rows] = await pool.query(
+      'SELECT id, email, phone FROM providers WHERE email = ? AND phone = ? LIMIT 1',
+      [email, phone]
+    );
+
+    if (rows.length === 0) {
+      console.log(`ℹ️ Reset requested for unknown pair: ${email} / ${phone}`);
+      return genericOk();
+    }
+
+    try {
+      const { status, data } = await diditSendPhoneCode(phone);
+      if (status === 200 && data.status === 'Success') {
+        console.log(`✅ DIDIT SMS sent for ${phone} (reset-request)`);
+      } else {
+        console.error(`❌ DIDIT SMS send failed for ${phone}: ${status} ${JSON.stringify(data)}`);
+      }
+    } catch (diditErr) {
+      console.error(`❌ DIDIT SMS send error for ${phone}:`, diditErr.message);
+    }
+
+    return genericOk();
+  } catch (error) {
+    console.error('Password reset-request error:', error);
+    return genericOk();
+  }
+});
+
+// Confirm password reset — verifies DIDIT code and updates password
+app.post('/api/password/reset', [
+  authLimiter,
+  authSpeedLimiter,
+  body('email').trim().isEmail().normalizeEmail(),
+  body('phone').trim().notEmpty(),
+  body('code').isLength({ min: 6, max: 6 }).isNumeric(),
+  body('new_password').isLength({ min: 8 })
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, error: '入力内容を確認してください' });
+    }
+
+    const { email, phone: rawPhone, code, new_password } = req.body;
+    const phone = normalizeJPPhone(rawPhone);
+    if (!phone) {
+      return res.status(400).json({ success: false, error: '電話番号の形式が正しくありません' });
+    }
+
+    // Per-pair rate limit on verification attempts
+    const pairKey = `${phone}|${email}`;
+    if (!bumpCounter(resetVerifyByPair, pairKey, 5)) {
+      return res.status(429).json({
+        success: false,
+        error: '試行回数の上限に達しました。1時間後にもう一度お試しください'
+      });
+    }
+
+    // Phone + email pair must match a real account
+    const [rows] = await pool.query(
+      'SELECT id, email, phone FROM providers WHERE email = ? AND phone = ? LIMIT 1',
+      [email, phone]
+    );
+
+    if (rows.length === 0) {
+      return res.status(400).json({ success: false, error: 'コードが無効または期限切れです' });
+    }
+
+    const provider = rows[0];
+
+    // Verify code with DIDIT
+    let diditStatus;
+    let diditData;
+    try {
+      const result = await diditCheckPhoneCode(phone, code);
+      diditStatus = result.status;
+      diditData = result.data;
+    } catch (diditErr) {
+      console.error(`❌ DIDIT verify network error for ${phone}:`, diditErr.message);
+      return res.status(502).json({ success: false, error: 'SMS認証サーバへの接続に失敗しました' });
+    }
+
+    if (diditStatus !== 200 || diditData.status !== 'Approved') {
+      console.warn(`❌ DIDIT verify rejected for ${phone}: ${diditStatus} ${JSON.stringify(diditData)}`);
+      if (diditData && diditData.status === 'Expired or Not Found') {
+        return res.status(400).json({ success: false, error: 'コードの有効期限が切れています。もう一度送信してください' });
+      }
+      return res.status(400).json({ success: false, error: 'コードが正しくありません' });
+    }
+
+    // Hash new password, update and revoke all existing JWTs
+    const hashedPassword = await bcrypt.hash(new_password, 10);
+    await pool.query(
+      'UPDATE providers SET password = ?, password_changed_at = NOW() WHERE id = ?',
+      [hashedPassword, provider.id]
+    );
+
+    console.log(`✅ Password reset completed for ${provider.email} (${phone})`);
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('Password reset error:', error);
+    return res.status(500).json({ success: false, error: 'パスワード再設定に失敗しました' });
+  }
+});
+
 // Change provider password
 app.patch('/api/providers/:providerId/password', [
   authenticateToken,
@@ -1678,9 +1910,9 @@ app.patch('/api/providers/:providerId/password', [
     // Hash new password
     const hashedPassword = await bcrypt.hash(new_password, 10);
 
-    // Update password
+    // Update password and bump password_changed_at to revoke existing JWTs
     await pool.query(
-      'UPDATE providers SET password = ? WHERE id = ?',
+      'UPDATE providers SET password = ?, password_changed_at = NOW() WHERE id = ?',
       [hashedPassword, req.params.providerId]
     );
 

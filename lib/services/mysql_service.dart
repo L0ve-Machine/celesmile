@@ -436,6 +436,59 @@ class MySQLService {
   }
 
   // Change provider password
+  // Request a password-reset SMS via DIDIT.
+  // Always resolves to success (to prevent enumeration) unless a network error occurs.
+  // Requires both phone AND email because providers.phone is not unique in the DB.
+  Future<Map<String, dynamic>> requestPasswordReset({
+    required String phone,
+    required String email,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/password/reset-request'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({'phone': phone, 'email': email}),
+      );
+      if (response.statusCode == 200) {
+        return {'success': true};
+      }
+      return {'success': false, 'error': 'ネットワークエラーが発生しました'};
+    } catch (e) {
+      return {'success': false, 'error': 'ネットワークエラーが発生しました'};
+    }
+  }
+
+  // Submit SMS code + new password. Backend re-verifies the code with DIDIT.
+  Future<Map<String, dynamic>> resetPassword({
+    required String phone,
+    required String email,
+    required String code,
+    required String newPassword,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/password/reset'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'phone': phone,
+          'email': email,
+          'code': code,
+          'new_password': newPassword,
+        }),
+      );
+      final data = json.decode(response.body);
+      if (response.statusCode == 200 && data['success'] == true) {
+        return {'success': true};
+      }
+      return {
+        'success': false,
+        'error': data['error'] ?? 'パスワード再設定に失敗しました',
+      };
+    } catch (e) {
+      return {'success': false, 'error': 'ネットワークエラーが発生しました'};
+    }
+  }
+
   Future<Map<String, dynamic>> changeProviderPassword(String providerId, String currentPassword, String newPassword) async {
     final response = await http.patch(
       Uri.parse('$baseUrl/providers/$providerId/password'),

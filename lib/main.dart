@@ -38,6 +38,8 @@ import 'screens/provider_chat_list_screen.dart';
 import 'screens/search_results_screen.dart';
 import 'screens/notification_settings_screen.dart';
 import 'screens/terms_of_service_screen.dart';
+import 'screens/forgot_password_screen.dart';
+import 'screens/reset_password_screen.dart';
 import 'constants/colors.dart';
 import 'services/provider_database_service.dart';
 import 'services/notification_service.dart';
@@ -96,6 +98,8 @@ class CelesmileApp extends StatelessWidget {
         '/': (context) => const WelcomeScreen(),
         '/onboarding': (context) => const OnboardingScreen(),
         '/phone-verification': (context) => const PhoneVerificationScreen(),
+        '/forgot-password': (context) => const ForgotPasswordScreen(),
+        '/reset-password': (context) => const ResetPasswordScreen(),
         '/account-setup': (context) => const AccountSetupScreen(),
         '/profile-registration': (context) {
           final args = ModalRoute.of(context)?.settings.arguments as Map<String, dynamic>?;

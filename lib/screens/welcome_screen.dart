@@ -182,11 +182,22 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                   ),
                 ),
                 const SizedBox(height: 4),
-                const Text(
-                  "パスワードがわかりませんか？",
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: AppColors.textSecondary,
+                TextButton(
+                  onPressed: () {
+                    Navigator.pushNamed(context, '/forgot-password');
+                  },
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: Size(0, 0),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: const Text(
+                    "パスワードがわかりませんか？",
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textSecondary,
+                      decoration: TextDecoration.underline,
+                    ),
                   ),
                 ),
               ],
